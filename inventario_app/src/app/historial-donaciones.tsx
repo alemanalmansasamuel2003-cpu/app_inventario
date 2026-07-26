@@ -10,8 +10,8 @@ import {
   View,
   Text,
   FlatList,
-  StyleSheet,
   TouchableOpacity,
+  StyleSheet,
   ActivityIndicator,
   Alert,
   RefreshControl,
@@ -21,76 +21,75 @@ import api from '../services/api';
 
 /**
  * ============================================================
- * INTERFAZ: PRODUCTO
- * ============================================================
- */
-interface Producto {
-  id_producto: number;
-  nombre: string;
-  cantidad: number;
-  unidad_medida?: string | null;
-  fecha_vencimiento: string | null;
-}
-
-/**
- * ============================================================
- * INTERFAZ: PRODUCTO PRÓXIMO A VENCER
+ * INTERFAZ: DONACIÓN
  * ============================================================
  *
- * Agrega la cantidad de días restantes
- * para facilitar la visualización.
+ * Columnas devueltas por:
+ *
+ * vw_historial_donaciones
  */
-interface ProductoProximoVencer
-  extends Producto {
-  diasRestantes: number;
+interface Donacion {
+  id_donacion: number;
+  fecha_donacion: string | null;
+  numero_documento: string | null;
+  estado: string | null;
+  observaciones: string | null;
+  id_donante: number | null;
+  donante: string | null;
+  id_usuario: number | null;
+  registrado_por: string | null;
+  total_productos: number;
+  total_unidades: number;
+  productos_donados?: string | null;
 }
 
 /**
  * ============================================================
- * PANTALLA: PRODUCTOS PRÓXIMOS A VENCER
+ * PANTALLA: HISTORIAL DE DONACIONES
  * ============================================================
  *
  * Funcionalidades:
  *
- * ✔ Consultar productos.
- * ✔ Mostrar productos que vencen en los próximos 30 días.
- * ✔ Ignorar productos sin fecha de vencimiento.
- * ✔ Ignorar productos ya vencidos.
- * ✔ Mostrar días restantes.
+ * ✔ Consultar las donaciones registradas.
+ * ✔ Mostrar el nombre del donante.
+ * ✔ Mostrar el estado de la donación.
+ * ✔ Mostrar el número de documento.
+ * ✔ Mostrar el total de productos.
+ * ✔ Mostrar el total de unidades.
+ * ✔ Mostrar la fecha de la donación.
+ * ✔ Mostrar observaciones.
+ * ✔ Mostrar el usuario que registró la donación.
  * ✔ Actualizar deslizando hacia abajo.
- * ✔ Manejar errores y carga.
+ * ✔ Abrir el detalle del donante.
  *
  * ============================================================
  */
-export default function ProximosVencer() {
+export default function HistorialDonaciones() {
 
   /**
-   * Lista de productos próximos
-   * a vencer.
+   * Lista de donaciones obtenidas.
    */
   const [
-    productos,
-    setProductos,
-  ] = useState<
-    ProductoProximoVencer[]
-  >([]);
+    donaciones,
+    setDonaciones,
+  ] = useState<Donacion[]>([]);
 
   /**
-   * Controla la carga inicial.
+   * Indica la carga inicial.
    */
   const [
     cargando,
     setCargando,
-  ] = useState<boolean>(true);
+  ] = useState(true);
 
   /**
-   * Controla la actualización
-   * mediante RefreshControl.
+   * Indica que la lista está siendo
+   * actualizada manualmente.
    */
   const [
     actualizando,
     setActualizando,
-  ] = useState<boolean>(false);
+  ] = useState(false);
 
   /**
    * ============================================================
@@ -100,7 +99,7 @@ export default function ProximosVencer() {
   const mostrarMensaje = (
     titulo: string,
     mensaje: string
-  ): void => {
+  ) => {
 
     Alert.alert(
       titulo,
@@ -110,84 +109,109 @@ export default function ProximosVencer() {
 
   /**
    * ============================================================
-   * CALCULAR DÍAS RESTANTES
+   * OBTENER DONACIONES
    * ============================================================
+   *
+   * GET /api/movimientos/donaciones
    */
-  const calcularDiasRestantes = (
-    fechaVencimiento: string
-  ): number | null => {
+  const obtenerDonaciones =
+    useCallback(
+      async (
+        esActualizacion = false
+      ) => {
 
-    /**
-     * Se normaliza la fecha actual
-     * para evitar errores por horas.
-     */
-    const hoy =
-      new Date();
+        try {
 
-    hoy.setHours(
-      0,
-      0,
-      0,
-      0
+          if (esActualizacion) {
+
+            setActualizando(true);
+
+          } else {
+
+            setCargando(true);
+          }
+
+          const response =
+            await api.get(
+              '/movimientos/donaciones'
+            );
+
+          console.log(
+            'Donaciones obtenidas:',
+            response.data
+          );
+
+          const respuesta =
+            response.data;
+
+          let listaDonaciones:
+            Donacion[] = [];
+
+          /**
+           * Formato esperado:
+           *
+           * {
+           *   success: true,
+           *   data: [...]
+           * }
+           */
+          if (
+            Array.isArray(
+              respuesta?.data
+            )
+          ) {
+
+            listaDonaciones =
+              respuesta.data;
+
+          } else if (
+            Array.isArray(respuesta)
+          ) {
+
+            listaDonaciones =
+              respuesta;
+          }
+
+          setDonaciones(
+            listaDonaciones
+          );
+
+        } catch (error: any) {
+
+          console.error(
+            'Error al obtener donaciones:',
+            error?.response?.data ||
+            error?.message ||
+            error
+          );
+
+          mostrarMensaje(
+            'Error',
+            error?.response?.data
+              ?.mensaje ||
+            error?.response?.data
+              ?.message ||
+            'No se pudo cargar el historial de donaciones.'
+          );
+
+        } finally {
+
+          setCargando(false);
+          setActualizando(false);
+        }
+      },
+      []
     );
 
-    /**
-     * Se evita el error común de zona horaria
-     * cuando MySQL devuelve YYYY-MM-DD.
-     */
-    const partesFecha =
-      fechaVencimiento
-        .substring(0, 10)
-        .split('-')
-        .map(Number);
+  /**
+   * Consultar donaciones cuando
+   * se abre la pantalla.
+   */
+  useEffect(() => {
 
-    if (
-      partesFecha.length !== 3 ||
-      partesFecha.some(
-        (valor) =>
-          !Number.isFinite(valor)
-      )
-    ) {
+    obtenerDonaciones();
 
-      return null;
-    }
-
-    const [
-      anio,
-      mes,
-      dia,
-    ] = partesFecha;
-
-    const fecha =
-      new Date(
-        anio,
-        mes - 1,
-        dia
-      );
-
-    if (
-      Number.isNaN(
-        fecha.getTime()
-      )
-    ) {
-
-      return null;
-    }
-
-    const diferenciaMilisegundos =
-      fecha.getTime() -
-      hoy.getTime();
-
-    return Math.ceil(
-      diferenciaMilisegundos /
-      (
-        1000 *
-        60 *
-        60 *
-        24
-      )
-    );
-  };
+  }, [obtenerDonaciones]);
 
   /**
    * ============================================================
@@ -195,38 +219,16 @@ export default function ProximosVencer() {
    * ============================================================
    */
   const formatearFecha = (
-    fecha: string | null
+    fecha?: string | null
   ): string => {
 
     if (!fecha) {
+
       return 'No registrada';
     }
 
-    const partesFecha =
-      fecha
-        .substring(0, 10)
-        .split('-')
-        .map(Number);
-
-    if (
-      partesFecha.length !== 3
-    ) {
-
-      return fecha;
-    }
-
-    const [
-      anio,
-      mes,
-      dia,
-    ] = partesFecha;
-
     const fechaConvertida =
-      new Date(
-        anio,
-        mes - 1,
-        dia
-      );
+      new Date(fecha);
 
     if (
       Number.isNaN(
@@ -234,31 +236,33 @@ export default function ProximosVencer() {
       )
     ) {
 
-      return fecha;
+      return fecha.substring(
+        0,
+        10
+      );
     }
 
     return fechaConvertida
-      .toLocaleDateString(
+      .toLocaleString(
         'es-CR',
         {
-          day: '2-digit',
-          month: 'long',
-          year: 'numeric',
+          dateStyle: 'medium',
+          timeStyle: 'short',
         }
       );
   };
 
   /**
    * ============================================================
-   * FORMATEAR CANTIDAD
+   * FORMATEAR NÚMERO
    * ============================================================
    */
-  const formatearCantidad = (
-    cantidad: number
+  const formatearNumero = (
+    valor?: number | null
   ): string => {
 
     const numero =
-      Number(cantidad);
+      Number(valor);
 
     if (
       !Number.isFinite(numero)
@@ -274,212 +278,25 @@ export default function ProximosVencer() {
 
   /**
    * ============================================================
-   * CARGAR PRODUCTOS
+   * ABRIR DETALLE DEL DONANTE
    * ============================================================
    */
-  const cargarProductos =
-    useCallback(
-      async (
-        esActualizacion = false
-      ): Promise<void> => {
+  const abrirDetalleDonante = (
+    idDonante: number | null
+  ) => {
 
-        try {
-
-          if (esActualizacion) {
-
-            setActualizando(true);
-
-          } else {
-
-            setCargando(true);
-          }
-
-          const response =
-            await api.get(
-              '/productos'
-            );
-
-          console.log(
-            'Productos obtenidos:',
-            response.data
-          );
-
-          /**
-           * Permite recibir:
-           *
-           * {
-           *   success: true,
-           *   data: [...]
-           * }
-           *
-           * o directamente:
-           *
-           * [...]
-           */
-          const respuesta =
-            response.data;
-
-          let listaProductos:
-            Producto[] = [];
-
-          if (
-            Array.isArray(
-              respuesta?.data
-            )
-          ) {
-
-            listaProductos =
-              respuesta.data;
-
-          } else if (
-            Array.isArray(respuesta)
-          ) {
-
-            listaProductos =
-              respuesta;
-          }
-
-          /**
-           * Filtra productos que vencen
-           * desde hoy hasta dentro de 30 días.
-           */
-          const productosFiltrados =
-            listaProductos
-              .filter(
-                (
-                  producto
-                ): producto is Producto & {
-                  fecha_vencimiento: string;
-                } =>
-                  Boolean(
-                    producto
-                      .fecha_vencimiento
-                  )
-              )
-              .map(
-                (
-                  producto
-                ): ProductoProximoVencer | null => {
-
-                  const diasRestantes =
-                    calcularDiasRestantes(
-                      producto
-                        .fecha_vencimiento
-                    );
-
-                  if (
-                    diasRestantes === null ||
-                    diasRestantes < 0 ||
-                    diasRestantes > 30
-                  ) {
-
-                    return null;
-                  }
-
-                  return {
-                    ...producto,
-                    diasRestantes,
-                  };
-                }
-              )
-              .filter(
-                (
-                  producto
-                ): producto is ProductoProximoVencer =>
-                  producto !== null
-              )
-              .sort(
-                (
-                  productoA,
-                  productoB
-                ) =>
-                  productoA
-                    .diasRestantes -
-                  productoB
-                    .diasRestantes
-              );
-
-          setProductos(
-            productosFiltrados
-          );
-
-        } catch (error: any) {
-
-          console.error(
-            'Error al cargar productos próximos a vencer:',
-            error?.response?.data ||
-            error?.message ||
-            error
-          );
-
-          mostrarMensaje(
-            'Error',
-            error?.response?.data
-              ?.mensaje ||
-            error?.response?.data
-              ?.message ||
-            'No se pudieron cargar los productos próximos a vencer.'
-          );
-
-        } finally {
-
-          setCargando(false);
-          setActualizando(false);
-        }
-      },
-      []
-    );
-
-  /**
-   * Carga los productos al abrir
-   * la pantalla.
-   */
-  useEffect(() => {
-
-    cargarProductos();
-
-  }, [cargarProductos]);
-
-  /**
-   * ============================================================
-   * TEXTO DE DÍAS RESTANTES
-   * ============================================================
-   */
-  const obtenerTextoDias = (
-    diasRestantes: number
-  ): string => {
-
-    if (diasRestantes === 0) {
-      return 'Vence hoy';
-    }
-
-    if (diasRestantes === 1) {
-      return 'Vence mañana';
-    }
-
-    return `Vence en ${diasRestantes} días`;
-  };
-
-  /**
-   * ============================================================
-   * ABRIR DETALLE DEL PRODUCTO
-   * ============================================================
-   */
-  const abrirDetalleProducto = (
-    idProducto: number
-  ): void => {
-
-    const id =
-      Number(idProducto);
+    const idNumerico =
+      Number(idDonante);
 
     if (
-      !Number.isInteger(id) ||
-      id <= 0
+      idDonante === null ||
+      !Number.isInteger(idNumerico) ||
+      idNumerico <= 0
     ) {
 
       mostrarMensaje(
-        'Producto no disponible',
-        'No se pudo identificar el producto seleccionado.'
+        'Donante no disponible',
+        'Esta donación no tiene un donante asociado.'
       );
 
       return;
@@ -487,12 +304,12 @@ export default function ProximosVencer() {
 
     router.push({
       pathname:
-        '/detalle-producto' as any,
+        '/detalle-donante' as any,
 
       params: {
-        id: String(id),
+        id: String(idNumerico),
       },
-    } as any);
+    });
   };
 
   /**
@@ -507,7 +324,7 @@ export default function ProximosVencer() {
 
         <ActivityIndicator
           size="large"
-          color="#DC3545"
+          color="#198754"
         />
 
         <Text
@@ -515,7 +332,7 @@ export default function ProximosVencer() {
             styles.textoCargando
           }
         >
-          Cargando productos...
+          Cargando donaciones...
         </Text>
 
       </View>
@@ -524,7 +341,7 @@ export default function ProximosVencer() {
 
   /**
    * ============================================================
-   * INTERFAZ
+   * INTERFAZ PRINCIPAL
    * ============================================================
    */
   return (
@@ -533,9 +350,7 @@ export default function ProximosVencer() {
       {/* Botón volver */}
 
       <TouchableOpacity
-        style={
-          styles.botonVolver
-        }
+        style={styles.botonVolver}
         onPress={() =>
           router.back()
         }
@@ -554,37 +369,30 @@ export default function ProximosVencer() {
 
       <View style={styles.encabezado}>
 
-        <Text
-          style={
-            styles.iconoTitulo
-          }
-        >
-          ⏳
+        <Text style={styles.iconoTitulo}>
+          🎁
         </Text>
 
         <Text style={styles.titulo}>
-          Productos Próximos a Vencer
+          Historial de Donaciones
         </Text>
 
         <Text style={styles.subtitulo}>
-          Productos que vencen en los próximos 30 días
+          Consulte las donaciones recibidas
         </Text>
 
       </View>
 
       {/* Resumen */}
 
-      <View
-        style={
-          styles.tarjetaResumen
-        }
-      >
+      <View style={styles.tarjetaResumen}>
+
         <Text
           style={
             styles.numeroResumen
           }
         >
-          {productos.length}
+          {donaciones.length}
         </Text>
 
         <Text
@@ -593,21 +401,26 @@ export default function ProximosVencer() {
           }
         >
           {
-            productos.length === 1
-              ? 'producto próximo a vencer'
-              : 'productos próximos a vencer'
+            donaciones.length === 1
+              ? 'donación registrada'
+              : 'donaciones registradas'
           }
         </Text>
+
       </View>
 
-      {/* Lista */}
+      {/* Lista de donaciones */}
 
       <FlatList
-        data={productos}
+        data={donaciones}
 
+        /**
+         * Se utiliza id_donacion porque
+         * es único para cada tarjeta.
+         */
         keyExtractor={(item) =>
           String(
-            item.id_producto
+            item.id_donacion
           )
         }
 
@@ -616,103 +429,93 @@ export default function ProximosVencer() {
         }
 
         contentContainerStyle={
-          productos.length === 0
+          donaciones.length === 0
             ? styles.listaVacia
             : styles.contenidoLista
         }
 
         refreshControl={
           <RefreshControl
-            refreshing={
-              actualizando
-            }
+            refreshing={actualizando}
             onRefresh={() =>
-              cargarProductos(true)
+              obtenerDonaciones(true)
             }
-            colors={['#DC3545']}
-            tintColor="#DC3545"
+            colors={['#198754']}
+            tintColor="#198754"
           />
         }
 
         renderItem={({ item }) => {
 
-          const venceUrgente =
-            item.diasRestantes <= 7;
+          const tieneDonante =
+            item.id_donante !== null &&
+            Number(item.id_donante) > 0;
 
           return (
             <TouchableOpacity
               style={[
                 styles.tarjeta,
 
-                venceUrgente &&
-                  styles.tarjetaUrgente,
+                !tieneDonante &&
+                  styles.tarjetaDeshabilitada,
               ]}
               onPress={() =>
-                abrirDetalleProducto(
-                  item.id_producto
+                abrirDetalleDonante(
+                  item.id_donante
                 )
               }
+              disabled={!tieneDonante}
               activeOpacity={0.8}
             >
+
+              {/* Encabezado de la tarjeta */}
+
               <View
                 style={
                   styles.encabezadoTarjeta
                 }
               >
+
+                <View style={styles.flexUno}>
+
+                  <Text
+                    style={
+                      styles.donante
+                    }
+                  >
+                    {
+                      item.donante ||
+                      'Donante no registrado'
+                    }
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.tipo
+                    }
+                  >
+                    {
+                      item.estado ||
+                      'Estado no registrado'
+                    }
+                  </Text>
+
+                </View>
+
                 <View
                   style={
-                    styles.contenidoNombre
+                    styles.insigniaDonacion
                   }
                 >
                   <Text
                     style={
-                      styles.nombre
+                      styles.textoInsignia
                     }
                   >
-                    {item.nombre}
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.diasRestantes,
-
-                      venceUrgente &&
-                        styles.diasUrgentes,
-                    ]}
-                  >
-                    {
-                      obtenerTextoDias(
-                        item.diasRestantes
-                      )
-                    }
+                    DONACIÓN
                   </Text>
                 </View>
 
-                <View
-                  style={[
-                    styles.insignia,
-
-                    venceUrgente
-                      ? styles.insigniaUrgente
-                      : styles.insigniaProximo,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.textoInsignia,
-
-                      venceUrgente
-                        ? styles.textoUrgente
-                        : styles.textoProximo,
-                    ]}
-                  >
-                    {
-                      venceUrgente
-                        ? 'URGENTE'
-                        : 'PRÓXIMO'
-                    }
-                  </Text>
-                </View>
               </View>
 
               <View
@@ -721,6 +524,18 @@ export default function ProximosVencer() {
                 }
               />
 
+              {/* Identificador de la donación */}
+
+              <Text
+                style={
+                  styles.producto
+                }
+              >
+                Donación #{item.id_donacion}
+              </Text>
+
+              {/* Productos diferentes */}
+
               <View style={styles.fila}>
 
                 <Text
@@ -728,7 +543,7 @@ export default function ProximosVencer() {
                     styles.etiqueta
                   }
                 >
-                  Cantidad:
+                  Productos diferentes:
                 </Text>
 
                 <Text
@@ -737,17 +552,15 @@ export default function ProximosVencer() {
                   }
                 >
                   {
-                    formatearCantidad(
-                      item.cantidad
+                    formatearNumero(
+                      item.total_productos
                     )
-                  }{' '}
-                  {
-                    item.unidad_medida ||
-                    ''
                   }
                 </Text>
 
               </View>
+
+              {/* Total de unidades */}
 
               <View style={styles.fila}>
 
@@ -756,30 +569,202 @@ export default function ProximosVencer() {
                     styles.etiqueta
                   }
                 >
-                  Fecha de vencimiento:
+                  Total de unidades:
                 </Text>
 
                 <Text
                   style={
-                    styles.vencimiento
+                    styles.valor
                   }
                 >
                   {
-                    formatearFecha(
-                      item.fecha_vencimiento
+                    formatearNumero(
+                      item.total_unidades
                     )
                   }
                 </Text>
 
               </View>
 
-              <Text
+              {/* Productos donados */}
+
+              <View
                 style={
-                  styles.verDetalle
+                  styles.productosDonadosContainer
                 }
               >
-                Ver detalle del producto →
-              </Text>
+                <Text
+                  style={
+                    styles.etiqueta
+                  }
+                >
+                  Productos donados:
+                </Text>
+
+                <Text
+                  style={
+                    styles.productosDonados
+                  }
+                >
+                  {
+                    item.productos_donados ||
+                    'No registrados'
+                  }
+                </Text>
+              </View>
+
+              {/* Documento */}
+
+              <View style={styles.fila}>
+
+                <Text
+                  style={
+                    styles.etiqueta
+                  }
+                >
+                  Documento:
+                </Text>
+
+                <Text
+                  style={
+                    styles.valor
+                  }
+                >
+                  {
+                    item.numero_documento ||
+                    'No registrado'
+                  }
+                </Text>
+
+              </View>
+
+              {/* Estado */}
+
+              <View style={styles.fila}>
+
+                <Text
+                  style={
+                    styles.etiqueta
+                  }
+                >
+                  Estado:
+                </Text>
+
+                <Text
+                  style={
+                    styles.valor
+                  }
+                >
+                  {
+                    item.estado ||
+                    'No registrado'
+                  }
+                </Text>
+
+              </View>
+
+              {/* Fecha */}
+
+              <View style={styles.fila}>
+
+                <Text
+                  style={
+                    styles.etiqueta
+                  }
+                >
+                  Fecha:
+                </Text>
+
+                <Text
+                  style={
+                    styles.valor
+                  }
+                >
+                  {
+                    formatearFecha(
+                      item.fecha_donacion
+                    )
+                  }
+                </Text>
+
+              </View>
+
+              {/* Usuario responsable */}
+
+              <View style={styles.fila}>
+
+                <Text
+                  style={
+                    styles.etiqueta
+                  }
+                >
+                  Registrado por:
+                </Text>
+
+                <Text
+                  style={
+                    styles.valor
+                  }
+                >
+                  {
+                    item.registrado_por ||
+                    'No registrado'
+                  }
+                </Text>
+
+              </View>
+
+              {/* Observaciones */}
+
+              <View
+                style={
+                  styles.observacionesContainer
+                }
+              >
+                <Text
+                  style={
+                    styles.etiqueta
+                  }
+                >
+                  Observaciones
+                </Text>
+
+                <Text
+                  style={
+                    styles.observaciones
+                  }
+                >
+                  {
+                    item.observaciones ||
+                    'Sin observaciones'
+                  }
+                </Text>
+
+              </View>
+
+              {/* Acceso al detalle */}
+
+              {
+                tieneDonante
+                  ? (
+                    <Text
+                      style={
+                        styles.verDetalle
+                      }
+                    >
+                      Ver detalle del donante →
+                    </Text>
+                  )
+                  : (
+                    <Text
+                      style={
+                        styles.sinDetalle
+                      }
+                    >
+                      Sin donante asociado
+                    </Text>
+                  )
+              }
 
             </TouchableOpacity>
           );
@@ -791,12 +776,13 @@ export default function ProximosVencer() {
               styles.contenedorSinDatos
             }
           >
+
             <Text
               style={
                 styles.iconoSinDatos
               }
             >
-              ✅
+              📭
             </Text>
 
             <Text
@@ -804,7 +790,7 @@ export default function ProximosVencer() {
                 styles.tituloSinDatos
               }
             >
-              Sin vencimientos próximos
+              No hay donaciones
             </Text>
 
             <Text
@@ -812,7 +798,7 @@ export default function ProximosVencer() {
                 styles.sinDatos
               }
             >
-              No existen productos que venzan durante los próximos 30 días.
+              No existen donaciones registradas en el sistema.
             </Text>
 
             <TouchableOpacity
@@ -820,7 +806,7 @@ export default function ProximosVencer() {
                 styles.botonActualizar
               }
               onPress={() =>
-                cargarProductos()
+                obtenerDonaciones()
               }
               activeOpacity={0.8}
             >
@@ -832,6 +818,7 @@ export default function ProximosVencer() {
                 Actualizar
               </Text>
             </TouchableOpacity>
+
           </View>
         }
       />
@@ -895,22 +882,22 @@ const styles = StyleSheet.create({
   titulo: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#0D3B66',
     textAlign: 'center',
+    color: '#0D3B66',
   },
 
   subtitulo: {
+    marginTop: 5,
     color: '#667085',
     fontSize: 15,
     textAlign: 'center',
-    marginTop: 5,
   },
 
   tarjetaResumen: {
     width: '100%',
     maxWidth: 700,
     alignSelf: 'center',
-    backgroundColor: '#DC3545',
+    backgroundColor: '#198754',
     borderRadius: 15,
     paddingVertical: 15,
     paddingHorizontal: 20,
@@ -946,12 +933,12 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     backgroundColor: '#FFFFFF',
     borderLeftWidth: 5,
-    borderLeftColor: '#F0AD4E',
+    borderLeftColor: '#198754',
+    padding: 17,
+    borderRadius: 14,
+    marginBottom: 15,
     borderWidth: 1,
     borderColor: '#E3E8EF',
-    borderRadius: 14,
-    padding: 17,
-    marginBottom: 15,
 
     shadowColor: '#000000',
 
@@ -965,8 +952,8 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
 
-  tarjetaUrgente: {
-    borderLeftColor: '#DC3545',
+  tarjetaDeshabilitada: {
+    opacity: 0.75,
   },
 
   encabezadoTarjeta: {
@@ -976,52 +963,33 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 
-  contenidoNombre: {
+  flexUno: {
     flex: 1,
   },
 
-  nombre: {
-    fontSize: 20,
+  donante: {
+    fontSize: 21,
     fontWeight: '800',
-    color: '#1D2939',
+    color: '#198754',
   },
 
-  diasRestantes: {
-    color: '#B54708',
+  tipo: {
+    color: '#667085',
+    marginTop: 4,
     fontSize: 14,
-    fontWeight: '700',
-    marginTop: 5,
   },
 
-  diasUrgentes: {
-    color: '#DC3545',
-  },
-
-  insignia: {
+  insigniaDonacion: {
+    backgroundColor: '#DFF3E5',
     borderRadius: 20,
     paddingVertical: 6,
     paddingHorizontal: 10,
   },
 
-  insigniaUrgente: {
-    backgroundColor: '#FCE2E2',
-  },
-
-  insigniaProximo: {
-    backgroundColor: '#FFF0D5',
-  },
-
   textoInsignia: {
+    color: '#157347',
     fontWeight: '800',
     fontSize: 11,
-  },
-
-  textoUrgente: {
-    color: '#B42318',
-  },
-
-  textoProximo: {
-    color: '#B54708',
   },
 
   separador: {
@@ -1030,16 +998,23 @@ const styles = StyleSheet.create({
     marginVertical: 13,
   },
 
+  producto: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 12,
+    color: '#1D2939',
+  },
+
   fila: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    marginBottom: 8,
     flexWrap: 'wrap',
-    marginBottom: 9,
   },
 
   etiqueta: {
-    color: '#344054',
     fontWeight: '700',
+    color: '#344054',
     fontSize: 15,
     marginRight: 5,
   },
@@ -1051,19 +1026,49 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
 
-  vencimiento: {
-    flex: 1,
-    minWidth: 100,
-    color: '#DC3545',
-    fontSize: 15,
-    fontWeight: '700',
+  productosDonadosContainer: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 4,
+    marginBottom: 10,
+  },
+
+  productosDonados: {
+    color: '#166534',
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 5,
+  },
+
+  observacionesContainer: {
+    backgroundColor: '#F8FAFC',
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 5,
+  },
+
+  observaciones: {
+    color: '#475467',
+    fontSize: 14,
+    marginTop: 5,
+    lineHeight: 20,
   },
 
   verDetalle: {
     color: '#0D6EFD',
     fontWeight: '800',
-    marginTop: 12,
+    marginTop: 14,
     fontSize: 15,
+  },
+
+  sinDetalle: {
+    color: '#98A2B3',
+    fontWeight: '700',
+    marginTop: 14,
+    fontSize: 14,
   },
 
   contenedorSinDatos: {
@@ -1092,7 +1097,7 @@ const styles = StyleSheet.create({
 
   botonActualizar: {
     marginTop: 20,
-    backgroundColor: '#0D6EFD',
+    backgroundColor: '#198754',
     paddingVertical: 12,
     paddingHorizontal: 25,
     borderRadius: 10,

@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { router, useLocalSearchParams } from 'expo-router';
+import {
+  router,
+  useLocalSearchParams,
+} from 'expo-router';
 
 import {
   View,
@@ -9,6 +12,9 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 
 import { Picker } from '@react-native-picker/picker';
@@ -20,14 +26,17 @@ import api from '../services/api';
  * PANTALLA: EDITAR PERFIL
  * =====================================================
  *
- * Funcionalidades
+ * Funcionalidades:
+ *
  * ✔ Editar nombre.
  * ✔ Editar correo.
- * ✔ Cambiar contraseña.
- * ✔ Mostrar/Ocultar contraseña.
- * ✔ Administrador puede cambiar el rol.
- * ✔ Encargado solamente visualiza su rol.
- * ✔ Actualizar datos del usuario.
+ * ✔ Cambiar contraseña de forma opcional.
+ * ✔ Mostrar u ocultar contraseña.
+ * ✔ El administrador puede cambiar el rol.
+ * ✔ El encargado solo puede visualizar su rol.
+ * ✔ Validar los datos antes de enviarlos.
+ * ✔ Evitar múltiples solicitudes.
+ * ✔ Mostrar indicador de carga.
  *
  * =====================================================
  */
@@ -36,31 +45,47 @@ export default function EditarPerfil() {
 
   /**
    * =====================================================
-   * DATOS RECIBIDOS
-   * =====================================================
-   *
-   * id           -> Usuario que se editará.
-   * nombre       -> Nombre actual.
-   * correo       -> Correo actual.
-   * rol          -> Rol del usuario editado.
-   * rolUsuario   -> Rol del usuario que inició sesión.
-   *
+   * PARÁMETROS RECIBIDOS
    * =====================================================
    */
 
-  const {
+  const parametros = useLocalSearchParams<{
+    id?: string | string[];
+    nombre?: string | string[];
+    correo?: string | string[];
+    rol?: string | string[];
+    rolUsuario?: string | string[];
+  }>();
 
-    id,
+  /**
+   * Convierte un parámetro de Expo Router
+   * en una cadena segura.
+   */
+  const obtenerParametro = (
+    valor?: string | string[]
+  ): string => {
 
-    nombre,
+    if (Array.isArray(valor)) {
+      return valor[0] || '';
+    }
 
-    correo,
+    return valor || '';
+  };
 
-    rol,
+  const idUsuario =
+    obtenerParametro(parametros.id);
 
-    rolUsuario
+  const nombreActual =
+    obtenerParametro(parametros.nombre);
 
-  } = useLocalSearchParams();
+  const correoActual =
+    obtenerParametro(parametros.correo);
+
+  const rolActual =
+    obtenerParametro(parametros.rol);
+
+  const rolUsuarioActual =
+    obtenerParametro(parametros.rolUsuario);
 
   /**
    * =====================================================
@@ -68,46 +93,44 @@ export default function EditarPerfil() {
    * =====================================================
    */
 
-  /**
-   * Nombre.
-   */
+  const [
+    nuevoNombre,
+    setNuevoNombre,
+  ] = useState(nombreActual);
 
-  const [nuevoNombre, setNuevoNombre] =
-    useState(
-      nombre?.toString() || ''
-    );
+  const [
+    nuevoCorreo,
+    setNuevoCorreo,
+  ] = useState(correoActual);
 
-  /**
-   * Correo.
-   */
+  const [
+    nuevoRol,
+    setNuevoRol,
+  ] = useState(
+    rolActual || 'Encargado'
+  );
 
-  const [nuevoCorreo, setNuevoCorreo] =
-    useState(
-      correo?.toString() || ''
-    );
+  const [
+    nuevoPassword,
+    setNuevoPassword,
+  ] = useState('');
 
-  /**
-   * Rol.
-   */
+  const [
+    mostrarPassword,
+    setMostrarPassword,
+  ] = useState(false);
 
-  const [nuevoRol, setNuevoRol] =
-    useState(
-      rol?.toString() || ''
-    );
-
-  /**
-   * Contraseña.
-   */
-
-  const [nuevoPassword, setNuevoPassword] =
-    useState('');
+  const [
+    guardando,
+    setGuardando,
+  ] = useState(false);
 
   /**
-   * Mostrar contraseña.
+   * Determina si el usuario que inició sesión
+   * tiene permisos de administrador.
    */
-
-  const [mostrarPassword, setMostrarPassword] =
-    useState(false);
+  const esAdministrador =
+    rolUsuarioActual === 'Administrador';
 
   /**
    * =====================================================
@@ -124,7 +147,6 @@ export default function EditarPerfil() {
       titulo,
       mensaje
     );
-
   };
 
   /**
@@ -135,14 +157,15 @@ export default function EditarPerfil() {
 
   const validarCorreo = (
     email: string
-  ) => {
+  ): boolean => {
 
-    const regex =
+    const expresion =
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    return regex.test(email);
+    return expresion.test(email);
+  };
 
-  };  /**
+  /**
    * =====================================================
    * GUARDAR CAMBIOS
    * =====================================================
@@ -150,151 +173,210 @@ export default function EditarPerfil() {
 
   const guardarCambios = async () => {
 
+    if (guardando) {
+      return;
+    }
+
+    const nombreLimpio =
+      nuevoNombre.trim();
+
+    const correoLimpio =
+      nuevoCorreo
+        .trim()
+        .toLowerCase();
+
+    const passwordLimpio =
+      nuevoPassword.trim();
+
     /**
-     * Limpiar espacios.
+     * Validar identificador.
      */
+    const idNumerico =
+      Number(idUsuario);
 
-    const nombreLimpio = nuevoNombre.trim();
-
-    const correoLimpio = nuevoCorreo.trim();
-
-    /**
-     * Validar campos obligatorios.
-     */
-
-    if (!nombreLimpio || !correoLimpio) {
+    if (
+      !idUsuario ||
+      !Number.isInteger(idNumerico) ||
+      idNumerico <= 0
+    ) {
 
       mostrarMensaje(
-        'Campos incompletos',
-        'Debe completar todos los campos.'
+        'Error',
+        'No se recibió un identificador de usuario válido.'
       );
 
       return;
+    }
 
+    /**
+     * Validar nombre.
+     */
+    if (!nombreLimpio) {
+
+      mostrarMensaje(
+        'Nombre obligatorio',
+        'Debe ingresar el nombre completo.'
+      );
+
+      return;
+    }
+
+    if (nombreLimpio.length < 3) {
+
+      mostrarMensaje(
+        'Nombre inválido',
+        'El nombre debe contener al menos 3 caracteres.'
+      );
+
+      return;
     }
 
     /**
      * Validar correo.
      */
+    if (!correoLimpio) {
+
+      mostrarMensaje(
+        'Correo obligatorio',
+        'Debe ingresar el correo electrónico.'
+      );
+
+      return;
+    }
 
     if (!validarCorreo(correoLimpio)) {
 
       mostrarMensaje(
         'Correo inválido',
-        'Ingrese un correo válido.'
+        'Ingrese un correo electrónico válido.'
       );
 
       return;
-
     }
 
     /**
-     * Validar contraseña.
+     * La contraseña es opcional.
+     * Solo se valida cuando el usuario escribió una.
      */
-
     if (
-      nuevoPassword !== '' &&
-      nuevoPassword.length < 6
+      passwordLimpio &&
+      passwordLimpio.length < 6
     ) {
 
       mostrarMensaje(
         'Contraseña inválida',
-        'Debe contener al menos 6 caracteres.'
+        'La nueva contraseña debe contener al menos 6 caracteres.'
       );
 
       return;
-
     }
 
     /**
-     * Verificar ID.
+     * El administrador puede cambiar el rol.
+     * El encargado conserva el rol original.
      */
+    const rolGuardar =
+      esAdministrador
+        ? nuevoRol
+        : rolActual;
 
-    if (!id) {
+    const rolesPermitidos = [
+      'Administrador',
+      'Encargado',
+    ];
+
+    if (
+      !rolGuardar ||
+      !rolesPermitidos.includes(
+        rolGuardar
+      )
+    ) {
 
       mostrarMensaje(
-        'Error',
-        'No se recibió el identificador del usuario.'
+        'Rol inválido',
+        'Debe seleccionar un rol válido.'
       );
 
       return;
-
     }
-
-    /**
-     * Si quien inició sesión es Administrador
-     * puede modificar el rol.
-     *
-     * Si es Encargado, se conserva el rol.
-     */
-
-    const rolGuardar =
-      rolUsuario === 'Administrador'
-        ? nuevoRol
-        : rol;
 
     try {
 
-      console.log('========== ACTUALIZAR ==========');
+      setGuardando(true);
 
-      console.log({
-
-        id,
-
+      /**
+       * Se construye el objeto sin contraseña.
+       *
+       * La contraseña solamente se agrega
+       * cuando el usuario escribió una nueva.
+       */
+      const datosActualizar: {
+        nombre: string;
+        correo: string;
+        rol: string;
+        password?: string;
+      } = {
         nombre: nombreLimpio,
-
         correo: correoLimpio,
+        rol: rolGuardar,
+      };
 
-        password: nuevoPassword,
+      if (passwordLimpio) {
+        datosActualizar.password =
+          passwordLimpio;
+      }
 
-        rol: rolGuardar
-
-      });
-
-      const response = await api.put(
-
-        `/usuarios/${id}`,
-
+      console.log(
+        'Actualizando usuario:',
         {
-
-          nombre: nombreLimpio,
-
-          correo: correoLimpio,
-
-          password: nuevoPassword,
-
-          rol: rolGuardar
-
+          id: idNumerico,
+          nombre:
+            datosActualizar.nombre,
+          correo:
+            datosActualizar.correo,
+          rol:
+            datosActualizar.rol,
+          cambiaPassword:
+            Boolean(
+              datosActualizar.password
+            ),
         }
-
       );
 
+      const response =
+        await api.put(
+          `/usuarios/${idNumerico}`,
+          datosActualizar
+        );
+
       mostrarMensaje(
-
         'Éxito',
-
-        response.data.mensaje ||
+        response.data?.mensaje ||
+        response.data?.message ||
         'Perfil actualizado correctamente.'
-
       );
 
       router.back();
 
     } catch (error: any) {
 
-      console.log(error.response?.data);
-
-      mostrarMensaje(
-
-        'Error',
-
-        error.response?.data?.mensaje ||
-        'No fue posible actualizar el perfil.'
-
+      console.error(
+        'Error al actualizar perfil:',
+        error.response?.data ||
+        error.message
       );
 
-    }
+      mostrarMensaje(
+        'Error',
+        error.response?.data?.mensaje ||
+        error.response?.data?.message ||
+        'No fue posible actualizar el perfil.'
+      );
 
+    } finally {
+
+      setGuardando(false);
+    }
   };
 
   /**
@@ -303,158 +385,275 @@ export default function EditarPerfil() {
    * =====================================================
    */
 
-  return (   
-     <ScrollView
-      style={styles.container}
-      showsVerticalScrollIndicator={false}
+  return (
+    <KeyboardAvoidingView
+      style={styles.keyboardContainer}
+      behavior={
+        Platform.OS === 'ios'
+          ? 'padding'
+          : undefined
+      }
     >
-
-      {/* Botón volver */}
-
-      <TouchableOpacity
-        style={styles.botonVolver}
-        onPress={() => router.back()}
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={
+          styles.contenido
+        }
+        showsVerticalScrollIndicator={
+          false
+        }
+        keyboardShouldPersistTaps="handled"
       >
-
-        <Text style={styles.textoBoton}>
-          ⬅ Volver
-        </Text>
-
-      </TouchableOpacity>
-
-      {/* Título */}
-
-      <Text style={styles.titulo}>
-        Editar Perfil
-      </Text>
-
-      {/* Nombre */}
-
-      <Text style={styles.label}>
-        Nombre Completo
-      </Text>
-
-      <TextInput
-        style={styles.input}
-        value={nuevoNombre}
-        onChangeText={setNuevoNombre}
-        placeholder="Nombre completo"
-      />
-
-      {/* Correo */}
-
-      <Text style={styles.label}>
-        Correo Electrónico
-      </Text>
-
-      <TextInput
-        style={styles.input}
-        value={nuevoCorreo}
-        onChangeText={setNuevoCorreo}
-        keyboardType="email-address"
-        autoCapitalize="none"
-        placeholder="Correo electrónico"
-      />
-
-      {/* Contraseña */}
-
-      <Text style={styles.label}>
-        Nueva Contraseña
-      </Text>
-
-      <View style={styles.passwordContainer}>
-
-        <TextInput
-          style={styles.passwordInput}
-          placeholder="Dejar en blanco para conservar la contraseña"
-          secureTextEntry={!mostrarPassword}
-          value={nuevoPassword}
-          onChangeText={setNuevoPassword}
-        />
+        {/* Botón volver */}
 
         <TouchableOpacity
-          onPress={() =>
-            setMostrarPassword(!mostrarPassword)
-          }
+          style={styles.botonVolver}
+          onPress={() => router.back()}
+          disabled={guardando}
+          activeOpacity={0.8}
         >
-
-          <Text style={styles.icono}>
-            {mostrarPassword ? '🙈' : '👁️'}
+          <Text
+            style={
+              styles.textoBotonVolver
+            }
+          >
+            ← Volver
           </Text>
-
         </TouchableOpacity>
 
-      </View>
+        {/* Encabezado */}
 
-      {/* Rol */}
+        <View style={styles.encabezado}>
+          <Text style={styles.iconoPerfil}>
+            👤
+          </Text>
 
-      <Text style={styles.label}>
-        Rol
-      </Text>
+          <Text style={styles.titulo}>
+            Editar Perfil
+          </Text>
 
-      {
-        rolUsuario === 'Administrador'
+          <Text style={styles.subtitulo}>
+            Actualice la información del usuario
+          </Text>
+        </View>
 
-        ? (
+        {/* Formulario */}
 
-          <View style={styles.pickerContainer}>
+        <View style={styles.tarjeta}>
 
-            <Picker
-              selectedValue={nuevoRol}
-              onValueChange={(itemValue) =>
-                setNuevoRol(itemValue)
+          {/* Nombre */}
+
+          <Text style={styles.label}>
+            Nombre completo
+          </Text>
+
+          <TextInput
+            style={styles.input}
+            value={nuevoNombre}
+            onChangeText={setNuevoNombre}
+            placeholder="Ingrese el nombre completo"
+            placeholderTextColor="#8A8A8A"
+            autoCapitalize="words"
+            editable={!guardando}
+            maxLength={100}
+          />
+
+          {/* Correo */}
+
+          <Text style={styles.label}>
+            Correo electrónico
+          </Text>
+
+          <TextInput
+            style={styles.input}
+            value={nuevoCorreo}
+            onChangeText={setNuevoCorreo}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            placeholder="Ingrese el correo electrónico"
+            placeholderTextColor="#8A8A8A"
+            editable={!guardando}
+            maxLength={150}
+          />
+
+          {/* Contraseña */}
+
+          <Text style={styles.label}>
+            Nueva contraseña
+          </Text>
+
+          <View
+            style={
+              styles.passwordContainer
+            }
+          >
+            <TextInput
+              style={
+                styles.passwordInput
               }
-              style={styles.picker}
+              placeholder="Déjela vacía para conservar la actual"
+              placeholderTextColor="#8A8A8A"
+              secureTextEntry={
+                !mostrarPassword
+              }
+              value={nuevoPassword}
+              onChangeText={
+                setNuevoPassword
+              }
+              editable={!guardando}
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={100}
+            />
+
+            <TouchableOpacity
+              style={
+                styles.botonMostrarPassword
+              }
+              onPress={() =>
+                setMostrarPassword(
+                  (valorActual) =>
+                    !valorActual
+                )
+              }
+              disabled={guardando}
+              activeOpacity={0.7}
             >
-
-              <Picker.Item
-                label="Administrador"
-                value="Administrador"
-              />
-
-              <Picker.Item
-                label="Encargado"
-                value="Encargado"
-              />
-
-            </Picker>
-
+              <Text style={styles.icono}>
+                {
+                  mostrarPassword
+                    ? '🙈'
+                    : '👁️'
+                }
+              </Text>
+            </TouchableOpacity>
           </View>
 
-        )
+          <Text style={styles.ayuda}>
+            La contraseña es opcional y debe tener al menos 6 caracteres.
+          </Text>
 
-        : (
+          {/* Rol */}
 
-          <View style={styles.rolContainer}>
+          <Text style={styles.label}>
+            Rol
+          </Text>
 
-            <Text style={styles.rolTexto}>
-              {nuevoRol}
-            </Text>
+          {
+            esAdministrador
+              ? (
+                <View
+                  style={
+                    styles.pickerContainer
+                  }
+                >
+                  <Picker
+                    selectedValue={
+                      nuevoRol
+                    }
+                    onValueChange={(
+                      valor
+                    ) =>
+                      setNuevoRol(
+                        String(valor)
+                      )
+                    }
+                    style={styles.picker}
+                    enabled={!guardando}
+                  >
+                    <Picker.Item
+                      label="Administrador"
+                      value="Administrador"
+                    />
 
-          </View>
+                    <Picker.Item
+                      label="Encargado"
+                      value="Encargado"
+                    />
+                  </Picker>
+                </View>
+              )
+              : (
+                <View
+                  style={
+                    styles.rolContainer
+                  }
+                >
+                  <Text
+                    style={
+                      styles.rolTexto
+                    }
+                  >
+                    {
+                      rolActual ||
+                      'Sin rol asignado'
+                    }
+                  </Text>
 
-        )
+                  <Text
+                    style={
+                      styles.rolAyuda
+                    }
+                  >
+                    Solo un administrador puede modificar el rol.
+                  </Text>
+                </View>
+              )
+          }
 
-      }
+          {/* Botón guardar */}
 
-      {/* Botón guardar */}
+          <TouchableOpacity
+            style={[
+              styles.botonGuardar,
+              guardando &&
+                styles.botonDeshabilitado,
+            ]}
+            onPress={guardarCambios}
+            disabled={guardando}
+            activeOpacity={0.8}
+          >
+            {
+              guardando
+                ? (
+                  <View
+                    style={
+                      styles.contenidoBoton
+                    }
+                  >
+                    <ActivityIndicator
+                      size="small"
+                      color="#FFFFFF"
+                    />
 
-      <TouchableOpacity
-        style={styles.boton}
-        onPress={guardarCambios}
-      >
-
-        <Text style={styles.textoBoton}>
-          Guardar Cambios
-        </Text>
-
-      </TouchableOpacity>
-
-    </ScrollView>
-
+                    <Text
+                      style={
+                        styles.textoBotonGuardar
+                      }
+                    >
+                      Guardando...
+                    </Text>
+                  </View>
+                )
+                : (
+                  <Text
+                    style={
+                      styles.textoBotonGuardar
+                    }
+                  >
+                    Guardar cambios
+                  </Text>
+                )
+            }
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
+}
 
-}/**
+/**
  * =====================================================
  * ESTILOS
  * =====================================================
@@ -462,154 +661,199 @@ export default function EditarPerfil() {
 
 const styles = StyleSheet.create({
 
-  /**
-   * Contenedor principal
-   */
-  container: {
+  keyboardContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    padding: 20,
+    backgroundColor: '#F4F7FB',
   },
 
-  /**
-   * Botón volver
-   */
+  container: {
+    flex: 1,
+    backgroundColor: '#F4F7FB',
+  },
+
+  contenido: {
+    flexGrow: 1,
+    padding: 20,
+    paddingBottom: 50,
+  },
+
   botonVolver: {
-    marginTop: 20,
-    marginBottom: 25,
     alignSelf: 'flex-start',
     backgroundColor: '#0D6EFD',
     paddingVertical: 10,
     paddingHorizontal: 18,
     borderRadius: 10,
+    marginTop: 10,
+    marginBottom: 20,
   },
 
-  /**
-   * Título principal
-   */
+  textoBotonVolver: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+
+  encabezado: {
+    alignItems: 'center',
+    marginBottom: 25,
+  },
+
+  iconoPerfil: {
+    fontSize: 50,
+    marginBottom: 8,
+  },
+
   titulo: {
     fontSize: 30,
-    fontWeight: 'bold',
+    fontWeight: '800',
     color: '#0D3B66',
     textAlign: 'center',
-    marginBottom: 30,
   },
 
-  /**
-   * Etiquetas
-   */
+  subtitulo: {
+    marginTop: 6,
+    fontSize: 15,
+    color: '#667085',
+    textAlign: 'center',
+  },
+
+  tarjeta: {
+    width: '100%',
+    maxWidth: 650,
+    alignSelf: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#E3E8EF',
+
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+
   label: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#0D3B66',
     marginBottom: 8,
     marginTop: 10,
   },
 
-  /**
-   * Campos de texto
-   */
   input: {
+    minHeight: 52,
     borderWidth: 1,
-    borderColor: '#D9D9D9',
-    borderRadius: 10,
-    backgroundColor: '#F8F8F8',
+    borderColor: '#D9DEE7',
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
     paddingHorizontal: 15,
-    paddingVertical: 14,
+    paddingVertical: 13,
     fontSize: 16,
-    marginBottom: 15,
+    color: '#1D2939',
+    marginBottom: 14,
   },
 
-  /**
-   * Contenedor contraseña
-   */
   passwordContainer: {
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#D9D9D9',
-    borderRadius: 10,
-    backgroundColor: '#F8F8F8',
-    paddingHorizontal: 15,
-    marginBottom: 20,
+    borderColor: '#D9DEE7',
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+    paddingLeft: 15,
   },
 
-  /**
-   * Campo contraseña
-   */
   passwordInput: {
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 13,
     fontSize: 16,
+    color: '#1D2939',
   },
 
-  /**
-   * Icono mostrar contraseña
-   */
+  botonMostrarPassword: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+
   icono: {
-    fontSize: 24,
+    fontSize: 22,
   },
 
-  /**
-   * Contenedor Picker
-   */
+  ayuda: {
+    fontSize: 13,
+    color: '#667085',
+    marginTop: 7,
+    marginBottom: 14,
+  },
+
   pickerContainer: {
     borderWidth: 1,
-    borderColor: '#D9D9D9',
-    borderRadius: 10,
-    backgroundColor: '#F8F8F8',
+    borderColor: '#D9DEE7',
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
     marginBottom: 25,
     overflow: 'hidden',
   },
 
-  /**
-   * Picker
-   */
   picker: {
     width: '100%',
     height: 55,
+    color: '#1D2939',
   },
 
-  /**
-   * Contenedor rol de solo lectura
-   */
   rolContainer: {
     borderWidth: 1,
-    borderColor: '#D9D9D9',
-    borderRadius: 10,
-    backgroundColor: '#EFEFEF',
-    paddingVertical: 15,
+    borderColor: '#D9DEE7',
+    borderRadius: 12,
+    backgroundColor: '#F2F4F7',
+    paddingVertical: 14,
     paddingHorizontal: 15,
     marginBottom: 25,
   },
 
-  /**
-   * Texto del rol
-   */
   rolTexto: {
     fontSize: 16,
-    color: '#444',
-    fontWeight: 'bold',
+    color: '#344054',
+    fontWeight: '700',
   },
 
-  /**
-   * Botón guardar
-   */
-  boton: {
+  rolAyuda: {
+    marginTop: 5,
+    fontSize: 13,
+    color: '#667085',
+  },
+
+  botonGuardar: {
+    minHeight: 54,
     backgroundColor: '#0D6EFD',
-    paddingVertical: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 15,
     borderRadius: 12,
-    marginBottom: 40,
+    marginTop: 5,
   },
 
-  /**
-   * Texto botones
-   */
-  textoBoton: {
+  botonDeshabilitado: {
+    opacity: 0.65,
+  },
+
+  contenidoBoton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+
+  textoBotonGuardar: {
     color: '#FFFFFF',
     textAlign: 'center',
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 17,
+    fontWeight: '800',
   },
-
 });

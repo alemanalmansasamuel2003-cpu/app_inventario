@@ -1,16 +1,22 @@
-import { router, useLocalSearchParams } from 'expo-router';
 import React from 'react';
+
+import {
+  router,
+  useLocalSearchParams,
+} from 'expo-router';
+
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
+  ScrollView,
 } from 'react-native';
 
 /**
- * =====================================================
+ * ============================================================
  * PANTALLA: MI PERFIL
- * =====================================================
+ * ============================================================
  *
  * Muestra la información del usuario que inició sesión.
  *
@@ -20,344 +26,737 @@ import {
  * ✔ Mostrar correo.
  * ✔ Mostrar rol.
  * ✔ Editar el propio perfil.
- * ✔ Acceso a administración (Administrador).
+ * ✔ Acceder a la administración de usuarios.
+ * ✔ Agregar usuarios cuando el usuario es Administrador.
+ * ✔ Manejar parámetros string, string[] o undefined.
  *
- * =====================================================
+ * ============================================================
  */
-
 export default function Perfil() {
 
   /**
-   * =====================================================
-   * DATOS DEL USUARIO AUTENTICADO
-   * =====================================================
+   * ============================================================
+   * DATOS RECIBIDOS POR EXPO ROUTER
+   * ============================================================
    */
-
-  const {
-
-    id,
-
-    nombre,
-
-    correo,
-
-    rol
-
-  } = useLocalSearchParams();
+  const parametros =
+    useLocalSearchParams();
 
   /**
-   * =====================================================
-   * EDITAR PERFIL
-   * =====================================================
+   * ============================================================
+   * NORMALIZAR PARÁMETROS
+   * ============================================================
    *
-   * Se envían todos los datos del usuario autenticado.
+   * Expo Router puede entregar los parámetros como:
    *
-   * =====================================================
+   * string
+   * string[]
+   * undefined
    */
+  const obtenerTextoParametro = (
+    valor: string | string[] | undefined,
+    valorPredeterminado = ''
+  ): string => {
 
-  const editarPerfil = () => {
+    if (Array.isArray(valor)) {
+      return valor[0] || valorPredeterminado;
+    }
+
+    return valor || valorPredeterminado;
+  };
+
+  /**
+   * Datos normalizados del usuario.
+   */
+  const idUsuario =
+    obtenerTextoParametro(
+      parametros.id
+    );
+
+  const nombreUsuario =
+    obtenerTextoParametro(
+      parametros.nombre,
+      'No disponible'
+    );
+
+  const correoUsuario =
+    obtenerTextoParametro(
+      parametros.correo,
+      'No disponible'
+    );
+
+  const rolUsuario =
+    obtenerTextoParametro(
+      parametros.rol,
+      'No disponible'
+    );
+
+  /**
+   * Rol normalizado para realizar
+   * comparaciones seguras.
+   */
+  const rolNormalizado =
+    rolUsuario
+      .trim()
+      .toLowerCase();
+
+  /**
+   * Verifica si el usuario autenticado
+   * es Administrador.
+   */
+  const esAdministrador =
+    rolNormalizado ===
+    'administrador';
+
+  /**
+   * ============================================================
+   * EDITAR PERFIL
+   * ============================================================
+   */
+  const editarPerfil = (): void => {
 
     router.push({
-
-      pathname: '/editar-perfil',
+      pathname:
+        '/editar-perfil' as any,
 
       params: {
-
-        id: String(id),
-
-        nombre: String(nombre),
-
-        correo: String(correo),
+        id: idUsuario,
+        nombre: nombreUsuario,
+        correo: correoUsuario,
 
         /**
-         * Rol del usuario que se edita.
+         * Rol del usuario que será editado.
          */
-
-        rol: String(rol),
+        rol: rolUsuario,
 
         /**
          * Rol del usuario autenticado.
          */
-
-        rolUsuario: String(rol)
-
-      }
-
-    });
-
+        rolUsuario,
+      },
+    } as any);
   };
 
   /**
-   * =====================================================
-   * INTERFAZ
-   * =====================================================
+   * ============================================================
+   * ADMINISTRAR USUARIOS
+   * ============================================================
    */
+  const administrarUsuarios =
+    (): void => {
 
+      router.push({
+        pathname:
+          '/usuarios' as any,
+
+        params: {
+          id: idUsuario,
+          nombre: nombreUsuario,
+          correo: correoUsuario,
+          rol: rolUsuario,
+        },
+      } as any);
+    };
+
+  /**
+   * ============================================================
+   * AGREGAR USUARIO
+   * ============================================================
+   */
+  const agregarUsuario =
+    (): void => {
+
+      router.push({
+        pathname:
+          '/agregar-usuario' as any,
+
+        params: {
+          id: idUsuario,
+          nombre: nombreUsuario,
+          correo: correoUsuario,
+          rol: rolUsuario,
+        },
+      } as any);
+    };
+
+  /**
+   * ============================================================
+   * REGRESAR
+   * ============================================================
+   */
+  const regresar = (): void => {
+
+    router.back();
+  };
+
+  /**
+   * ============================================================
+   * INTERFAZ
+   * ============================================================
+   */
   return (
+    <ScrollView
+      contentContainerStyle={
+        styles.container
+      }
+      showsVerticalScrollIndicator={
+        false
+      }
+    >
+      <View style={styles.contenido}>
 
-    <View style={styles.container}>
+        {/* Botón volver */}
 
-    {/* ===================================================== */}
-    {/* BOTÓN VOLVER */}
-    {/* ===================================================== */}
+        <TouchableOpacity
+          style={
+            styles.botonVolver
+          }
+          onPress={regresar}
+          activeOpacity={0.8}
+        >
+          <Text
+            style={
+              styles.textoBotonVolver
+            }
+          >
+            ← Volver
+          </Text>
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.botonVolver}
-        onPress={() => router.back()}
-      >
+        {/* Encabezado */}
 
-        <Text style={styles.textoBoton}>
-          ⬅ Volver
-        </Text>
+        <View
+          style={
+            styles.encabezado
+          }
+        >
+          <Text
+            style={
+              styles.iconoPerfil
+            }
+          >
+            👤
+          </Text>
 
-      </TouchableOpacity>
+          <Text style={styles.titulo}>
+            Mi Perfil
+          </Text>
 
-      {/* ===================================================== */}
-      {/* TÍTULO */}
-      {/* ===================================================== */}
+          <Text
+            style={
+              styles.subtitulo
+            }
+          >
+            Información de la cuenta
+          </Text>
+        </View>
 
-      <Text style={styles.titulo}>
-        Mi Perfil
-      </Text>
+        {/* Tarjeta del perfil */}
 
-      {/* ===================================================== */}
-      {/* TARJETA */}
-      {/* ===================================================== */}
+        <View style={styles.tarjeta}>
 
-      <View style={styles.tarjeta}>
+          {/* Nombre */}
 
-        <Text style={styles.etiqueta}>
-          Nombre
-        </Text>
+          <View
+            style={
+              styles.filaInformacion
+            }
+          >
+            <View
+              style={
+                styles.contenedorIcono
+              }
+            >
+              <Text style={styles.iconoDato}>
+                👤
+              </Text>
+            </View>
 
-        <Text style={styles.valor}>
-          {nombre || 'No disponible'}
-        </Text>
+            <View style={styles.contenidoDato}>
 
-        <Text style={styles.etiqueta}>
-          Correo
-        </Text>
+              <Text style={styles.etiqueta}>
+                Nombre
+              </Text>
 
-        <Text style={styles.valor}>
-          {correo || 'No disponible'}
-        </Text>
+              <Text style={styles.valor}>
+                {nombreUsuario}
+              </Text>
 
-        <Text style={styles.etiqueta}>
-          Rol
-        </Text>
+            </View>
+          </View>
 
-        <Text style={styles.valor}>
-          {rol || 'No disponible'}
-        </Text>
+          <View style={styles.separador} />
+
+          {/* Correo */}
+
+          <View
+            style={
+              styles.filaInformacion
+            }
+          >
+            <View
+              style={
+                styles.contenedorIcono
+              }
+            >
+              <Text style={styles.iconoDato}>
+                ✉️
+              </Text>
+            </View>
+
+            <View style={styles.contenidoDato}>
+
+              <Text style={styles.etiqueta}>
+                Correo electrónico
+              </Text>
+
+              <Text style={styles.valor}>
+                {correoUsuario}
+              </Text>
+
+            </View>
+          </View>
+
+          <View style={styles.separador} />
+
+          {/* Rol */}
+
+          <View
+            style={
+              styles.filaInformacion
+            }
+          >
+            <View
+              style={
+                styles.contenedorIcono
+              }
+            >
+              <Text style={styles.iconoDato}>
+                🔐
+              </Text>
+            </View>
+
+            <View style={styles.contenidoDato}>
+
+              <Text style={styles.etiqueta}>
+                Rol
+              </Text>
+
+              <Text style={styles.valor}>
+                {rolUsuario}
+              </Text>
+
+            </View>
+          </View>
+
+        </View>
+
+        {/* Editar perfil */}
+
+        <TouchableOpacity
+          style={styles.boton}
+          onPress={editarPerfil}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.iconoBoton}>
+            ✏️
+          </Text>
+
+          <View
+            style={
+              styles.contenidoBoton
+            }
+          >
+            <Text
+              style={
+                styles.textoBoton
+              }
+            >
+              Editar Perfil
+            </Text>
+
+            <Text
+              style={
+                styles.descripcionBoton
+              }
+            >
+              Modificar nombre, correo o contraseña
+            </Text>
+          </View>
+
+          <Text style={styles.flecha}>
+            ›
+          </Text>
+        </TouchableOpacity>
+
+        {/* Opciones del administrador */}
+
+        {
+          esAdministrador
+            ? (
+              <>
+                <Text
+                  style={
+                    styles.tituloAdministracion
+                  }
+                >
+                  Administración
+                </Text>
+
+                {/* Administrar usuarios */}
+
+                <TouchableOpacity
+                  style={styles.boton}
+                  onPress={
+                    administrarUsuarios
+                  }
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={
+                      styles.iconoBoton
+                    }
+                  >
+                    👥
+                  </Text>
+
+                  <View
+                    style={
+                      styles.contenidoBoton
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.textoBoton
+                      }
+                    >
+                      Administrar Usuarios
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.descripcionBoton
+                      }
+                    >
+                      Consultar, editar o eliminar usuarios
+                    </Text>
+                  </View>
+
+                  <Text
+                    style={
+                      styles.flecha
+                    }
+                  >
+                    ›
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Agregar usuario */}
+
+                <TouchableOpacity
+                  style={styles.boton}
+                  onPress={agregarUsuario}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={
+                      styles.iconoBoton
+                    }
+                  >
+                    ➕
+                  </Text>
+
+                  <View
+                    style={
+                      styles.contenidoBoton
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.textoBoton
+                      }
+                    >
+                      Agregar Usuario
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.descripcionBoton
+                      }
+                    >
+                      Registrar una nueva cuenta
+                    </Text>
+                  </View>
+
+                  <Text
+                    style={
+                      styles.flecha
+                    }
+                  >
+                    ›
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )
+            : null
+        }
 
       </View>
-
-      {/* ===================================================== */}
-      {/* BOTÓN EDITAR PERFIL */}
-      {/* ===================================================== */}
-
-      <TouchableOpacity
-        style={styles.boton}
-        onPress={editarPerfil}
-      >
-
-        <Text style={styles.textoBoton}>
-          ✏️ Editar Perfil
-        </Text>
-
-      </TouchableOpacity>      
-
-      {/* ===================================================== */}
-      {/* OPCIONES EXCLUSIVAS DEL ADMINISTRADOR */}
-      {/* ===================================================== */}
-
-      {rol === 'Administrador' && (
-
-        <>
-
-          {/* Administrar Usuarios */}
-
-          <TouchableOpacity
-            style={styles.boton}
-            onPress={() =>
-              router.push({
-
-                pathname: '/usuarios',
-
-                params: {
-
-                  /**
-                   * Se envía el rol del usuario autenticado
-                   * para que Editar Perfil sepa que quien
-                   * está editando es un Administrador.
-                   */
-                  rol: String(rol)
-
-                }
-
-              })
-            }
-          >
-
-            <Text style={styles.textoBoton}>
-              👥 Administrar Usuarios
-            </Text>
-
-          </TouchableOpacity>
-
-          {/* Agregar Usuario */}
-
-          <TouchableOpacity
-            style={styles.boton}
-            onPress={() =>
-              router.push({
-
-                pathname: '/agregar-usuario',
-
-                params: {
-
-                  /**
-                   * También se envía el rol del
-                   * usuario autenticado.
-                   */
-                  rol: String(rol)
-
-                }
-
-              })
-            }
-          >
-
-            <Text style={styles.textoBoton}>
-              ➕ Agregar Usuario
-            </Text>
-
-          </TouchableOpacity>
-
-        </>
-
-      )}
-
-    </View>
-
+    </ScrollView>
   );
-
 }
 
 /**
- * =====================================================
+ * ============================================================
  * ESTILOS
- * =====================================================
+ * ============================================================
  */
+const styles = StyleSheet.create({
 
-const styles = StyleSheet.create({  
   /**
-   * =====================================================
-   * CONTENEDOR PRINCIPAL
-   * =====================================================
+   * Contenedor principal.
    */
   container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
+    flexGrow: 1,
+    backgroundColor: '#F5F1E8',
     padding: 20,
   },
 
   /**
-   * =====================================================
-   * BOTÓN VOLVER
-   * =====================================================
+   * Contenido central.
    */
-  botonVolver: {
-    marginTop: 20,
-    marginBottom: 20,
-    alignSelf: 'flex-start',
-    backgroundColor: '#007AFF',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 10,
+  contenido: {
+    width: '100%',
+    maxWidth: 700,
+    alignSelf: 'center',
   },
 
   /**
-   * =====================================================
-   * TÍTULO
-   * =====================================================
+   * Botón volver.
+   */
+  botonVolver: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#0D6EFD',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    marginTop: 10,
+    marginBottom: 20,
+  },
+
+  /**
+   * Texto del botón volver.
+   */
+  textoBotonVolver: {
+    color: '#FFFFFF',
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+
+  /**
+   * Encabezado.
+   */
+  encabezado: {
+    backgroundColor: '#0D3B66',
+    borderRadius: 22,
+    paddingVertical: 25,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+
+  /**
+   * Icono del perfil.
+   */
+  iconoPerfil: {
+    fontSize: 48,
+    marginBottom: 8,
+  },
+
+  /**
+   * Título principal.
    */
   titulo: {
     fontSize: 30,
-    fontWeight: 'bold',
+    fontWeight: '800',
     textAlign: 'center',
-    color: '#0D3B66',
-    marginBottom: 30,
+    color: '#FFFFFF',
   },
 
   /**
-   * =====================================================
-   * TARJETA DEL PERFIL
-   * =====================================================
+   * Subtítulo.
+   */
+  subtitulo: {
+    color: '#DCE6F0',
+    fontSize: 15,
+    textAlign: 'center',
+    marginTop: 6,
+  },
+
+  /**
+   * Tarjeta del perfil.
    */
   tarjeta: {
-    backgroundColor: '#F8F8F8',
-    padding: 25,
-    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#E3E8EF',
+    marginBottom: 20,
 
-    shadowColor: '#000',
+    shadowColor: '#000000',
+
     shadowOffset: {
       width: 0,
       height: 3,
     },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
 
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
     elevation: 4,
-
-    marginBottom: 25,
   },
 
   /**
-   * =====================================================
-   * ETIQUETAS
-   * =====================================================
+   * Fila de información.
+   */
+  filaInformacion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  /**
+   * Contenedor del icono.
+   */
+  contenedorIcono: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#EAF2FA',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+
+  /**
+   * Icono de cada dato.
+   */
+  iconoDato: {
+    fontSize: 23,
+  },
+
+  /**
+   * Contenido de cada dato.
+   */
+  contenidoDato: {
+    flex: 1,
+  },
+
+  /**
+   * Etiquetas.
    */
   etiqueta: {
-    fontSize: 17,
-    fontWeight: 'bold',
-    color: '#0D3B66',
-    marginTop: 15,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#667085',
+    marginBottom: 4,
   },
 
   /**
-   * =====================================================
-   * VALORES
-   * =====================================================
+   * Valores.
    */
   valor: {
     fontSize: 17,
-    color: '#444',
-    marginTop: 5,
+    color: '#1D2939',
+    fontWeight: '600',
   },
 
   /**
-   * =====================================================
-   * BOTONES
-   * =====================================================
+   * Separador.
+   */
+  separador: {
+    height: 1,
+    backgroundColor: '#E3E8EF',
+    marginVertical: 17,
+  },
+
+  /**
+   * Botones principales.
    */
   boton: {
-    backgroundColor: '#0D6EFD',
-    paddingVertical: 15,
-    borderRadius: 10,
-    marginBottom: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E3E8EF',
+    borderRadius: 16,
+    paddingVertical: 17,
+    paddingHorizontal: 16,
+    marginBottom: 14,
+
+    shadowColor: '#000000',
+
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
 
   /**
-   * =====================================================
-   * TEXTO BOTONES
-   * =====================================================
+   * Icono de cada botón.
    */
-  textoBoton: {
-    color: '#FFFFFF',
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: 'bold',
+  iconoBoton: {
+    width: 46,
+    fontSize: 27,
   },
 
+  /**
+   * Contenido del botón.
+   */
+  contenidoBoton: {
+    flex: 1,
+    paddingRight: 8,
+  },
+
+  /**
+   * Texto principal del botón.
+   */
+  textoBoton: {
+    color: '#0D3B66',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+
+  /**
+   * Descripción del botón.
+   */
+  descripcionBoton: {
+    color: '#667085',
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 4,
+  },
+
+  /**
+   * Flecha del botón.
+   */
+  flecha: {
+    color: '#98A2B3',
+    fontSize: 32,
+  },
+
+  /**
+   * Título de administración.
+   */
+  tituloAdministracion: {
+    color: '#344054',
+    fontSize: 18,
+    fontWeight: '800',
+    marginTop: 10,
+    marginBottom: 12,
+  },
 });

@@ -4,33 +4,81 @@ require('dotenv').config();
 
 const app = express();
 
-// Importar rutas
+/**
+ * ============================================
+ * IMPORTACIÓN DE RUTAS
+ * ============================================
+ */
+
 const productosRoutes = require('./routes/productos.routes');
 const authRoutes = require('./routes/auth.routes');
 const usuariosRoutes = require('./routes/usuarios.routes');
+const movimientosRoutes = require('./routes/movimientos.routes');
+const donantesRoutes = require('./routes/donantes.routes');
 
-// Middlewares
+/**
+ * ============================================
+ * MIDDLEWARES
+ * ============================================
+ */
+
 app.use(cors());
 app.use(express.json());
 
-// Ruta principal
+/**
+ * ============================================
+ * RUTA PRINCIPAL
+ * ============================================
+ */
+
 app.get('/', (req, res) => {
+
     res.json({
+
         success: true,
+
         mensaje: 'API Inventario funcionando correctamente'
+
     });
+
 });
 
-// Rutas del sistema
+/**
+ * ============================================
+ * RUTAS DEL SISTEMA
+ * ============================================
+ */
+
 app.use('/api/productos', productosRoutes);
+
 app.use('/api/auth', authRoutes);
+
 app.use('/api/usuarios', usuariosRoutes);
 
-// Puerto del servidor
+/**
+ * Módulo de movimientos del inventario.
+ */
+
+app.use('/api/movimientos', movimientosRoutes);
+
+/**
+ * Módulo de donantes.
+ */
+
+app.use('/api/donantes', donantesRoutes);
+
+/**
+ * ============================================
+ * PUERTO DEL SERVIDOR
+ * ============================================
+ */
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, '0.0.0.0', () => {
+
     console.log(
         `🚀 Servidor ejecutándose en http://localhost:${PORT}`
     );
+
 });

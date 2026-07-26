@@ -2,7 +2,17 @@ const db = require('../config/db');
 
 const obtenerProductos = async (req, res) => {
     try {
-        const [productos] = await db.query('SELECT * FROM productos');
+
+        const sql = `
+            SELECT
+                p.*,
+                c.nombre AS nombre_categoria
+            FROM productos p
+            LEFT JOIN categorias c
+                ON p.id_categoria = c.id_categoria
+        `;
+
+        const [productos] = await db.query(sql);
 
         res.status(200).json({
             success: true,
@@ -72,7 +82,15 @@ const obtenerProductoPorId = async (req, res) => {
         const { id } = req.params;
 
         const [producto] = await db.query(
-            'SELECT * FROM productos WHERE id_producto = ?',
+            `
+            SELECT
+                p.*,
+                c.nombre AS nombre_categoria
+            FROM productos p
+            LEFT JOIN categorias c
+                ON p.id_categoria = c.id_categoria
+            WHERE p.id_producto = ?
+            `,
             [id]
         );
 
