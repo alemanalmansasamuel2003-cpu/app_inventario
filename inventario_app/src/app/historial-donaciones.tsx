@@ -20,13 +20,7 @@ import {
 import api from '../services/api';
 
 /**
- * ============================================================
- * INTERFAZ: DONACIÓN
- * ============================================================
- *
- * Columnas devueltas por:
- *
- * vw_historial_donaciones
+ * Datos utilizados por la pantalla.
  */
 interface Donacion {
   id_donacion: number;
@@ -34,84 +28,131 @@ interface Donacion {
   numero_documento: string | null;
   estado: string | null;
   observaciones: string | null;
+
   id_donante: number | null;
   donante: string | null;
+
   id_usuario: number | null;
   registrado_por: string | null;
+
   total_productos: number;
   total_unidades: number;
-  productos_donados?: string | null;
+  productos_donados: string | null;
 }
 
 /**
- * ============================================================
- * PANTALLA: HISTORIAL DE DONACIONES
- * ============================================================
- *
- * Funcionalidades:
- *
- * ✔ Consultar las donaciones registradas.
- * ✔ Mostrar el nombre del donante.
- * ✔ Mostrar el estado de la donación.
- * ✔ Mostrar el número de documento.
- * ✔ Mostrar el total de productos.
- * ✔ Mostrar el total de unidades.
- * ✔ Mostrar la fecha de la donación.
- * ✔ Mostrar observaciones.
- * ✔ Mostrar el usuario que registró la donación.
- * ✔ Actualizar deslizando hacia abajo.
- * ✔ Abrir el detalle del donante.
- *
- * ============================================================
+ * Datos que puede devolver la vista SQL.
  */
+interface DonacionApi {
+  id_donacion?: number;
+  fecha_donacion?: string | null;
+  numero_documento?: string | null;
+  estado?: string | null;
+  observaciones?: string | null;
+
+  id_donante?: number | null;
+  nombre_donante?: string | null;
+  donante?: string | null;
+
+  id_usuario?: number | null;
+  nombre_usuario?: string | null;
+  registrado_por?: string | null;
+
+  productos_diferentes?: number | null;
+  total_productos?: number | null;
+  total_unidades?: number | null;
+  productos_donados?: string | null;
+}
+
 export default function HistorialDonaciones() {
 
-  /**
-   * Lista de donaciones obtenidas.
-   */
-  const [
-    donaciones,
-    setDonaciones,
-  ] = useState<Donacion[]>([]);
+  const [donaciones, setDonaciones] =
+    useState<Donacion[]>([]);
 
-  /**
-   * Indica la carga inicial.
-   */
-  const [
-    cargando,
-    setCargando,
-  ] = useState(true);
+  const [cargando, setCargando] =
+    useState(true);
 
-  /**
-   * Indica que la lista está siendo
-   * actualizada manualmente.
-   */
-  const [
-    actualizando,
-    setActualizando,
-  ] = useState(false);
+  const [actualizando, setActualizando] =
+    useState(false);
 
-  /**
-   * ============================================================
-   * MOSTRAR MENSAJE
-   * ============================================================
-   */
   const mostrarMensaje = (
     titulo: string,
     mensaje: string
   ) => {
-
-    Alert.alert(
-      titulo,
-      mensaje
-    );
+    Alert.alert(titulo, mensaje);
   };
 
   /**
-   * ============================================================
-   * OBTENER DONACIONES
-   * ============================================================
-   *
+   * Convierte los nombres devueltos por MySQL
+   * a los nombres utilizados por la pantalla.
+   */
+  const normalizarDonacion = (
+    item: DonacionApi
+  ): Donacion => {
+
+    return {
+      id_donacion:
+        Number(item.id_donacion) || 0,
+
+      fecha_donacion:
+        item.fecha_donacion || null,
+
+      numero_documento:
+        item.numero_documento || null,
+
+      estado:
+        item.estado || null,
+
+      observaciones:
+        item.observaciones || null,
+
+      id_donante:
+        item.id_donante !== null &&
+        item.id_donante !== undefined
+          ? Number(item.id_donante)
+          : null,
+
+      /**
+       * La vista devuelve nombre_donante.
+       */
+      donante:
+        item.nombre_donante ||
+        item.donante ||
+        null,
+
+      id_usuario:
+        item.id_usuario !== null &&
+        item.id_usuario !== undefined
+          ? Number(item.id_usuario)
+          : null,
+
+      /**
+       * La vista devuelve nombre_usuario.
+       */
+      registrado_por:
+        item.nombre_usuario ||
+        item.registrado_por ||
+        null,
+
+      /**
+       * La vista devuelve productos_diferentes.
+       */
+      total_productos:
+        Number(
+          item.productos_diferentes ??
+          item.total_productos ??
+          0
+        ),
+
+      total_unidades:
+        Number(item.total_unidades ?? 0),
+
+      productos_donados:
+        item.productos_donados || null,
+    };
+  };
+
+  /**
    * GET /api/movimientos/donaciones
    */
   const obtenerDonaciones =
@@ -123,11 +164,8 @@ export default function HistorialDonaciones() {
         try {
 
           if (esActualizacion) {
-
             setActualizando(true);
-
           } else {
-
             setCargando(true);
           }
 
@@ -138,42 +176,43 @@ export default function HistorialDonaciones() {
 
           console.log(
             'Donaciones obtenidas:',
-            response.data
+            JSON.stringify(
+              response.data,
+              null,
+              2
+            )
           );
 
           const respuesta =
             response.data;
 
-          let listaDonaciones:
-            Donacion[] = [];
+          let datosRecibidos:
+            DonacionApi[] = [];
 
-          /**
-           * Formato esperado:
-           *
-           * {
-           *   success: true,
-           *   data: [...]
-           * }
-           */
           if (
             Array.isArray(
               respuesta?.data
             )
           ) {
 
-            listaDonaciones =
+            datosRecibidos =
               respuesta.data;
 
           } else if (
             Array.isArray(respuesta)
           ) {
 
-            listaDonaciones =
+            datosRecibidos =
               respuesta;
           }
 
+          const listaNormalizada =
+            datosRecibidos.map(
+              normalizarDonacion
+            );
+
           setDonaciones(
-            listaDonaciones
+            listaNormalizada
           );
 
         } catch (error: any) {
@@ -203,27 +242,15 @@ export default function HistorialDonaciones() {
       []
     );
 
-  /**
-   * Consultar donaciones cuando
-   * se abre la pantalla.
-   */
   useEffect(() => {
-
     obtenerDonaciones();
-
   }, [obtenerDonaciones]);
 
-  /**
-   * ============================================================
-   * FORMATEAR FECHA
-   * ============================================================
-   */
   const formatearFecha = (
     fecha?: string | null
   ): string => {
 
     if (!fecha) {
-
       return 'No registrada';
     }
 
@@ -235,11 +262,7 @@ export default function HistorialDonaciones() {
         fechaConvertida.getTime()
       )
     ) {
-
-      return fecha.substring(
-        0,
-        10
-      );
+      return fecha.substring(0, 10);
     }
 
     return fechaConvertida
@@ -252,22 +275,13 @@ export default function HistorialDonaciones() {
       );
   };
 
-  /**
-   * ============================================================
-   * FORMATEAR NÚMERO
-   * ============================================================
-   */
   const formatearNumero = (
     valor?: number | null
   ): string => {
 
-    const numero =
-      Number(valor);
+    const numero = Number(valor);
 
-    if (
-      !Number.isFinite(numero)
-    ) {
-
+    if (!Number.isFinite(numero)) {
       return '0';
     }
 
@@ -276,11 +290,6 @@ export default function HistorialDonaciones() {
     );
   };
 
-  /**
-   * ============================================================
-   * ABRIR DETALLE DEL DONANTE
-   * ============================================================
-   */
   const abrirDetalleDonante = (
     idDonante: number | null
   ) => {
@@ -312,11 +321,6 @@ export default function HistorialDonaciones() {
     });
   };
 
-  /**
-   * ============================================================
-   * PANTALLA DE CARGA
-   * ============================================================
-   */
   if (cargando) {
 
     return (
@@ -327,11 +331,7 @@ export default function HistorialDonaciones() {
           color="#198754"
         />
 
-        <Text
-          style={
-            styles.textoCargando
-          }
-        >
+        <Text style={styles.textoCargando}>
           Cargando donaciones...
         </Text>
 
@@ -339,33 +339,18 @@ export default function HistorialDonaciones() {
     );
   }
 
-  /**
-   * ============================================================
-   * INTERFAZ PRINCIPAL
-   * ============================================================
-   */
   return (
     <View style={styles.container}>
 
-      {/* Botón volver */}
-
       <TouchableOpacity
         style={styles.botonVolver}
-        onPress={() =>
-          router.back()
-        }
+        onPress={() => router.back()}
         activeOpacity={0.8}
       >
-        <Text
-          style={
-            styles.textoBotonVolver
-          }
-        >
+        <Text style={styles.textoBotonVolver}>
           ← Volver
         </Text>
       </TouchableOpacity>
-
-      {/* Encabezado */}
 
       <View style={styles.encabezado}>
 
@@ -383,23 +368,13 @@ export default function HistorialDonaciones() {
 
       </View>
 
-      {/* Resumen */}
-
       <View style={styles.tarjetaResumen}>
 
-        <Text
-          style={
-            styles.numeroResumen
-          }
-        >
+        <Text style={styles.numeroResumen}>
           {donaciones.length}
         </Text>
 
-        <Text
-          style={
-            styles.textoResumen
-          }
-        >
+        <Text style={styles.textoResumen}>
           {
             donaciones.length === 1
               ? 'donación registrada'
@@ -409,19 +384,11 @@ export default function HistorialDonaciones() {
 
       </View>
 
-      {/* Lista de donaciones */}
-
       <FlatList
         data={donaciones}
 
-        /**
-         * Se utiliza id_donacion porque
-         * es único para cada tarjeta.
-         */
         keyExtractor={(item) =>
-          String(
-            item.id_donacion
-          )
+          String(item.id_donacion)
         }
 
         showsVerticalScrollIndicator={
@@ -455,7 +422,6 @@ export default function HistorialDonaciones() {
             <TouchableOpacity
               style={[
                 styles.tarjeta,
-
                 !tieneDonante &&
                   styles.tarjetaDeshabilitada,
               ]}
@@ -468,8 +434,6 @@ export default function HistorialDonaciones() {
               activeOpacity={0.8}
             >
 
-              {/* Encabezado de la tarjeta */}
-
               <View
                 style={
                   styles.encabezadoTarjeta
@@ -478,22 +442,14 @@ export default function HistorialDonaciones() {
 
                 <View style={styles.flexUno}>
 
-                  <Text
-                    style={
-                      styles.donante
-                    }
-                  >
+                  <Text style={styles.donante}>
                     {
                       item.donante ||
                       'Donante no registrado'
                     }
                   </Text>
 
-                  <Text
-                    style={
-                      styles.tipo
-                    }
-                  >
+                  <Text style={styles.tipo}>
                     {
                       item.estado ||
                       'Estado no registrado'
@@ -518,39 +474,19 @@ export default function HistorialDonaciones() {
 
               </View>
 
-              <View
-                style={
-                  styles.separador
-                }
-              />
+              <View style={styles.separador} />
 
-              {/* Identificador de la donación */}
-
-              <Text
-                style={
-                  styles.producto
-                }
-              >
+              <Text style={styles.producto}>
                 Donación #{item.id_donacion}
               </Text>
 
-              {/* Productos diferentes */}
-
               <View style={styles.fila}>
 
-                <Text
-                  style={
-                    styles.etiqueta
-                  }
-                >
+                <Text style={styles.etiqueta}>
                   Productos diferentes:
                 </Text>
 
-                <Text
-                  style={
-                    styles.valor
-                  }
-                >
+                <Text style={styles.valor}>
                   {
                     formatearNumero(
                       item.total_productos
@@ -560,23 +496,13 @@ export default function HistorialDonaciones() {
 
               </View>
 
-              {/* Total de unidades */}
-
               <View style={styles.fila}>
 
-                <Text
-                  style={
-                    styles.etiqueta
-                  }
-                >
+                <Text style={styles.etiqueta}>
                   Total de unidades:
                 </Text>
 
-                <Text
-                  style={
-                    styles.valor
-                  }
-                >
+                <Text style={styles.valor}>
                   {
                     formatearNumero(
                       item.total_unidades
@@ -586,18 +512,13 @@ export default function HistorialDonaciones() {
 
               </View>
 
-              {/* Productos donados */}
-
               <View
                 style={
                   styles.productosDonadosContainer
                 }
               >
-                <Text
-                  style={
-                    styles.etiqueta
-                  }
-                >
+
+                <Text style={styles.etiqueta}>
                   Productos donados:
                 </Text>
 
@@ -611,25 +532,16 @@ export default function HistorialDonaciones() {
                     'No registrados'
                   }
                 </Text>
-              </View>
 
-              {/* Documento */}
+              </View>
 
               <View style={styles.fila}>
 
-                <Text
-                  style={
-                    styles.etiqueta
-                  }
-                >
+                <Text style={styles.etiqueta}>
                   Documento:
                 </Text>
 
-                <Text
-                  style={
-                    styles.valor
-                  }
-                >
+                <Text style={styles.valor}>
                   {
                     item.numero_documento ||
                     'No registrado'
@@ -638,23 +550,13 @@ export default function HistorialDonaciones() {
 
               </View>
 
-              {/* Estado */}
-
               <View style={styles.fila}>
 
-                <Text
-                  style={
-                    styles.etiqueta
-                  }
-                >
+                <Text style={styles.etiqueta}>
                   Estado:
                 </Text>
 
-                <Text
-                  style={
-                    styles.valor
-                  }
-                >
+                <Text style={styles.valor}>
                   {
                     item.estado ||
                     'No registrado'
@@ -663,23 +565,13 @@ export default function HistorialDonaciones() {
 
               </View>
 
-              {/* Fecha */}
-
               <View style={styles.fila}>
 
-                <Text
-                  style={
-                    styles.etiqueta
-                  }
-                >
+                <Text style={styles.etiqueta}>
                   Fecha:
                 </Text>
 
-                <Text
-                  style={
-                    styles.valor
-                  }
-                >
+                <Text style={styles.valor}>
                   {
                     formatearFecha(
                       item.fecha_donacion
@@ -689,23 +581,13 @@ export default function HistorialDonaciones() {
 
               </View>
 
-              {/* Usuario responsable */}
-
               <View style={styles.fila}>
 
-                <Text
-                  style={
-                    styles.etiqueta
-                  }
-                >
+                <Text style={styles.etiqueta}>
                   Registrado por:
                 </Text>
 
-                <Text
-                  style={
-                    styles.valor
-                  }
-                >
+                <Text style={styles.valor}>
                   {
                     item.registrado_por ||
                     'No registrado'
@@ -714,18 +596,13 @@ export default function HistorialDonaciones() {
 
               </View>
 
-              {/* Observaciones */}
-
               <View
                 style={
                   styles.observacionesContainer
                 }
               >
-                <Text
-                  style={
-                    styles.etiqueta
-                  }
-                >
+
+                <Text style={styles.etiqueta}>
                   Observaciones
                 </Text>
 
@@ -742,28 +619,16 @@ export default function HistorialDonaciones() {
 
               </View>
 
-              {/* Acceso al detalle */}
-
               {
-                tieneDonante
-                  ? (
-                    <Text
-                      style={
-                        styles.verDetalle
-                      }
-                    >
-                      Ver detalle del donante →
-                    </Text>
-                  )
-                  : (
-                    <Text
-                      style={
-                        styles.sinDetalle
-                      }
-                    >
-                      Sin donante asociado
-                    </Text>
-                  )
+                tieneDonante ? (
+                  <Text style={styles.verDetalle}>
+                    Ver detalle del donante →
+                  </Text>
+                ) : (
+                  <Text style={styles.sinDetalle}>
+                    Sin donante asociado
+                  </Text>
+                )
               }
 
             </TouchableOpacity>
@@ -777,44 +642,26 @@ export default function HistorialDonaciones() {
             }
           >
 
-            <Text
-              style={
-                styles.iconoSinDatos
-              }
-            >
+            <Text style={styles.iconoSinDatos}>
               📭
             </Text>
 
-            <Text
-              style={
-                styles.tituloSinDatos
-              }
-            >
+            <Text style={styles.tituloSinDatos}>
               No hay donaciones
             </Text>
 
-            <Text
-              style={
-                styles.sinDatos
-              }
-            >
+            <Text style={styles.sinDatos}>
               No existen donaciones registradas en el sistema.
             </Text>
 
             <TouchableOpacity
-              style={
-                styles.botonActualizar
-              }
+              style={styles.botonActualizar}
               onPress={() =>
                 obtenerDonaciones()
               }
               activeOpacity={0.8}
             >
-              <Text
-                style={
-                  styles.textoActualizar
-                }
-              >
+              <Text style={styles.textoActualizar}>
                 Actualizar
               </Text>
             </TouchableOpacity>
@@ -827,11 +674,6 @@ export default function HistorialDonaciones() {
   );
 }
 
-/**
- * ============================================================
- * ESTILOS
- * ============================================================
- */
 const styles = StyleSheet.create({
 
   container: {

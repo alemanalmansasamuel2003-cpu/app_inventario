@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  Platform
 } from 'react-native';
 
 import {
@@ -29,6 +30,12 @@ import api from '../services/api';
  * 1. Envía el correo y el código al backend.
  * 2. Valida que el código exista y no haya vencido.
  * 3. Navega a la pantalla para crear una nueva contraseña.
+ *
+ * Si el código es incorrecto:
+ *
+ * 1. Muestra un mensaje de error.
+ * 2. Limpia el campo del código.
+ * 3. No permite navegar a la siguiente pantalla.
  *
  * ============================================================
  */
@@ -69,6 +76,34 @@ export default function VerificarCodigo() {
 
   /**
    * ============================================================
+   * MOSTRAR MENSAJE
+   * ============================================================
+   *
+   * Alert.alert puede no mostrarse correctamente en Expo Web.
+   * Por eso, en navegador se utiliza window.alert.
+   */
+  const mostrarMensaje = (
+    titulo: string,
+    mensaje: string
+  ) => {
+
+    if (Platform.OS === 'web') {
+
+      window.alert(
+        `${titulo}\n\n${mensaje}`
+      );
+
+      return;
+    }
+
+    Alert.alert(
+      titulo,
+      mensaje
+    );
+  };
+
+  /**
+   * ============================================================
    * VERIFICAR CÓDIGO
    * ============================================================
    */
@@ -77,11 +112,19 @@ export default function VerificarCodigo() {
     const codigoLimpio = codigo.trim();
 
     /**
+     * Evita realizar varias solicitudes
+     * al mismo tiempo.
+     */
+    if (verificando) {
+      return;
+    }
+
+    /**
      * Valida que el correo exista.
      */
     if (!correoLimpio) {
 
-      Alert.alert(
+      mostrarMensaje(
         'Error',
         'No se recibió el correo electrónico.'
       );
@@ -94,7 +137,7 @@ export default function VerificarCodigo() {
      */
     if (!/^\d{6}$/.test(codigoLimpio)) {
 
-      Alert.alert(
+      mostrarMensaje(
         'Validación',
         'Ingrese el código completo de 6 dígitos.'
       );
@@ -118,17 +161,39 @@ export default function VerificarCodigo() {
       );
 
       console.log(
-        'Código verificado:',
+        'Respuesta al verificar código:',
         response.data
       );
 
       /**
-       * Navega directamente a la pantalla
-       * para crear la nueva contraseña.
+       * Aunque el servidor responda con estado 200,
+       * se valida la propiedad success.
        *
-       * No se utiliza la navegación dentro
-       * de Alert.alert porque puede fallar
-       * cuando la aplicación se ejecuta en web.
+       * Esto evita avanzar cuando el backend devuelve:
+       *
+       * {
+       *   success: false,
+       *   mensaje: "Código incorrecto"
+       * }
+       */
+      if (response.data?.success !== true) {
+
+        setCodigo('');
+
+        mostrarMensaje(
+          'Código incorrecto',
+          response.data?.mensaje ||
+          response.data?.message ||
+          'El código ingresado es incorrecto.'
+        );
+
+        return;
+      }
+
+      /**
+       * Navega a la pantalla para crear
+       * la nueva contraseña solamente cuando
+       * el código fue validado correctamente.
        */
       router.replace({
         pathname: '/nueva-password',
@@ -143,16 +208,71 @@ export default function VerificarCodigo() {
       const datosError =
         error?.response?.data;
 
+      const estadoHttp =
+        error?.response?.status;
+
       console.error(
         'Error al verificar código:',
-        datosError || error?.message || error
+        {
+          estado: estadoHttp,
+          datos: datosError,
+          mensaje: error?.message
+        }
       );
 
-      Alert.alert(
-        'Código no válido',
+      /**
+       * Limpia el código incorrecto para
+       * permitir que el usuario lo vuelva
+       * a ingresar.
+       */
+      setCodigo('');
+
+      /**
+       * Mensaje enviado por el backend.
+       */
+      const mensajeServidor =
         datosError?.mensaje ||
-        datosError?.message ||
-        'El código es incorrecto o ha vencido.'
+        datosError?.message;
+
+      /**
+       * Detecta los errores relacionados
+       * con código incorrecto o vencido.
+       */
+      if (
+        estadoHttp === 400 ||
+        estadoHttp === 401 ||
+        estadoHttp === 404
+      ) {
+
+        mostrarMensaje(
+          'Código incorrecto',
+          mensajeServidor ||
+          'El código ingresado es incorrecto o ha vencido.'
+        );
+
+        return;
+      }
+
+      /**
+       * Error de conexión con el servidor.
+       */
+      if (!error?.response) {
+
+        mostrarMensaje(
+          'Error de conexión',
+          'No fue posible conectar con el servidor. Verifique que el backend esté ejecutándose.'
+        );
+
+        return;
+      }
+
+      /**
+       * Error inesperado.
+       */
+      mostrarMensaje(
+        'Error',
+        mensajeServidor ||
+        'No fue posible verificar el código. Inténtelo nuevamente.'
       );
 
     } finally {
@@ -213,6 +333,7 @@ export default function VerificarCodigo() {
           selectTextOnFocus
           selectionColor="#007AFF"
           onSubmitEditing={verificarCodigo}
+          returnKeyType="done"
         />
 
         {/* Botón verificar */}
@@ -307,9 +428,6 @@ const styles = StyleSheet.create({
     marginBottom: 25
   },
 
-  /**
-   * Campo del código centrado.
-   */
   inputCodigo: {
     width: '100%',
     height: 72,
