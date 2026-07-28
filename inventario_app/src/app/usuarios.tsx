@@ -18,6 +18,7 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Platform,
 } from 'react-native';
 
 import api from '../services/api';
@@ -25,11 +26,6 @@ import api from '../services/api';
 /**
  * ============================================================
  * INTERFAZ: USUARIO
- * ============================================================
- *
- * Define la estructura de los usuarios
- * recibidos desde el backend.
- *
  * ============================================================
  */
 interface Usuario {
@@ -43,26 +39,6 @@ interface Usuario {
  * ============================================================
  * PANTALLA: ADMINISTRAR USUARIOS
  * ============================================================
- *
- * Funcionalidades:
- *
- * ✔ Consultar usuarios registrados.
- * ✔ Editar usuarios.
- * ✔ Eliminar usuarios.
- * ✔ Actualizar la lista deslizando hacia abajo.
- * ✔ Manejar carga y errores.
- * ✔ Mantener el rol del usuario autenticado.
- *
- * Permisos:
- *
- * Administrador:
- * - Puede editar usuarios.
- * - Puede eliminar usuarios.
- *
- * Encargado:
- * - Puede consultar usuarios.
- *
- * ============================================================
  */
 export default function Usuarios() {
 
@@ -74,13 +50,6 @@ export default function Usuarios() {
   const parametros =
     useLocalSearchParams();
 
-  /**
-   * Expo Router puede devolver parámetros como:
-   *
-   * string
-   * string[]
-   * undefined
-   */
   const obtenerParametro = (
     valor:
       | string
@@ -95,9 +64,6 @@ export default function Usuarios() {
     return valor || '';
   };
 
-  /**
-   * Datos del usuario autenticado.
-   */
   const idUsuarioAutenticado =
     obtenerParametro(
       parametros.id
@@ -118,10 +84,6 @@ export default function Usuarios() {
       parametros.rol
     );
 
-  /**
-   * Verifica si el usuario actual
-   * tiene rol Administrador.
-   */
   const esAdministrador =
     rolUsuarioAutenticado
       .trim()
@@ -133,39 +95,56 @@ export default function Usuarios() {
    * ESTADOS
    * ============================================================
    */
-
-  /**
-   * Lista de usuarios.
-   */
   const [
     usuarios,
     setUsuarios,
   ] = useState<Usuario[]>([]);
 
-  /**
-   * Controla la carga inicial.
-   */
   const [
     cargando,
     setCargando,
   ] = useState<boolean>(true);
 
-  /**
-   * Controla la actualización manual.
-   */
   const [
     actualizando,
     setActualizando,
   ] = useState<boolean>(false);
 
-  /**
-   * Guarda el ID del usuario
-   * que se está eliminando.
-   */
   const [
     idEliminando,
     setIdEliminando,
   ] = useState<number | null>(null);
+
+  /**
+   * ============================================================
+   * MOSTRAR MENSAJE
+   * ============================================================
+   *
+   * Usa Alert en Android/iOS
+   * y window.alert en navegador.
+   */
+  const mostrarMensaje = (
+    titulo: string,
+    mensaje: string
+  ): void => {
+
+    if (
+      Platform.OS === 'web' &&
+      typeof window !== 'undefined'
+    ) {
+
+      window.alert(
+        `${titulo}\n\n${mensaje}`
+      );
+
+      return;
+    }
+
+    Alert.alert(
+      titulo,
+      mensaje
+    );
+  };
 
   /**
    * ============================================================
@@ -183,11 +162,8 @@ export default function Usuarios() {
         try {
 
           if (esActualizacion) {
-
             setActualizando(true);
-
           } else {
-
             setCargando(true);
           }
 
@@ -201,18 +177,6 @@ export default function Usuarios() {
             response.data
           );
 
-          /**
-           * Permite recibir:
-           *
-           * {
-           *   success: true,
-           *   data: []
-           * }
-           *
-           * o directamente:
-           *
-           * []
-           */
           let listaUsuarios:
             Usuario[] = [];
 
@@ -250,9 +214,7 @@ export default function Usuarios() {
 
           setUsuarios([]);
 
-          Alert.alert(
-            'Error',
-
+          const mensaje =
             error?.response?.data
               ?.mensaje ||
 
@@ -261,8 +223,24 @@ export default function Usuarios() {
 
             error?.message ||
 
-            'No fue posible cargar los usuarios.'
-          );
+            'No fue posible cargar los usuarios.';
+
+          if (
+            Platform.OS === 'web' &&
+            typeof window !== 'undefined'
+          ) {
+
+            window.alert(
+              `Error\n\n${mensaje}`
+            );
+
+          } else {
+
+            Alert.alert(
+              'Error',
+              mensaje
+            );
+          }
 
         } finally {
 
@@ -274,8 +252,8 @@ export default function Usuarios() {
     );
 
   /**
-   * Consulta los usuarios al abrir
-   * la pantalla.
+   * Consulta los usuarios
+   * al abrir la pantalla.
    */
   useEffect(() => {
 
@@ -292,18 +270,17 @@ export default function Usuarios() {
     usuario: Usuario
   ): void => {
 
-    if (
-      !Number.isInteger(
-        Number(
-          usuario.id_usuario
-        )
-      ) ||
+    const idUsuario =
       Number(
         usuario.id_usuario
-      ) <= 0
+      );
+
+    if (
+      !Number.isInteger(idUsuario) ||
+      idUsuario <= 0
     ) {
 
-      Alert.alert(
+      mostrarMensaje(
         'Error',
         'Usuario inválido.'
       );
@@ -313,7 +290,7 @@ export default function Usuarios() {
 
     if (!esAdministrador) {
 
-      Alert.alert(
+      mostrarMensaje(
         'Acceso restringido',
         'Solo un Administrador puede editar otros usuarios.'
       );
@@ -326,9 +303,6 @@ export default function Usuarios() {
         '/editar-perfil',
 
       params: {
-        /**
-         * Usuario que se editará.
-         */
         id:
           String(
             usuario.id_usuario
@@ -343,16 +317,9 @@ export default function Usuarios() {
         rol:
           usuario.rol,
 
-        /**
-         * Rol del usuario autenticado.
-         */
         rolUsuario:
           rolUsuarioAutenticado,
 
-        /**
-         * Datos del usuario autenticado
-         * para conservar la navegación.
-         */
         idUsuarioAutenticado,
         nombreUsuarioAutenticado,
         correoUsuarioAutenticado,
@@ -386,9 +353,14 @@ export default function Usuarios() {
             `/usuarios/${idUsuario}`
           );
 
+        console.log(
+          'Respuesta al eliminar:',
+          response.data
+        );
+
         /**
-         * Actualiza inmediatamente
-         * la lista local.
+         * Elimina inmediatamente
+         * el usuario de la lista.
          */
         setUsuarios(
           (
@@ -396,18 +368,28 @@ export default function Usuarios() {
           ) =>
             usuariosActuales.filter(
               (usuario) =>
-                usuario.id_usuario !==
-                idUsuario
+                Number(
+                  usuario.id_usuario
+                ) !==
+                Number(
+                  idUsuario
+                )
             )
         );
 
-        Alert.alert(
+        mostrarMensaje(
           'Usuario eliminado',
 
           response.data?.mensaje ||
           response.data?.message ||
           'El usuario se eliminó correctamente.'
         );
+
+        /**
+         * Vuelve a consultar la base
+         * de datos para sincronizar.
+         */
+        await obtenerUsuarios();
 
       } catch (error: any) {
 
@@ -418,9 +400,7 @@ export default function Usuarios() {
           error
         );
 
-        Alert.alert(
-          'Error',
-
+        const mensaje =
           error?.response?.data
             ?.mensaje ||
 
@@ -429,7 +409,11 @@ export default function Usuarios() {
 
           error?.message ||
 
-          'No fue posible eliminar el usuario.'
+          'No fue posible eliminar el usuario.';
+
+        mostrarMensaje(
+          'Error',
+          mensaje
         );
 
       } finally {
@@ -455,13 +439,11 @@ export default function Usuarios() {
       );
 
     if (
-      !Number.isInteger(
-        idUsuario
-      ) ||
+      !Number.isInteger(idUsuario) ||
       idUsuario <= 0
     ) {
 
-      Alert.alert(
+      mostrarMensaje(
         'Error',
         'Usuario inválido.'
       );
@@ -471,7 +453,7 @@ export default function Usuarios() {
 
     if (!esAdministrador) {
 
-      Alert.alert(
+      mostrarMensaje(
         'Acceso restringido',
         'Solo un Administrador puede eliminar usuarios.'
       );
@@ -480,15 +462,15 @@ export default function Usuarios() {
     }
 
     /**
-     * Impide que el Administrador
-     * elimine su propia cuenta.
+     * Impide eliminar la cuenta
+     * que tiene la sesión iniciada.
      */
     if (
       String(idUsuario) ===
-      idUsuarioAutenticado
+      String(idUsuarioAutenticado)
     ) {
 
-      Alert.alert(
+      mostrarMensaje(
         'Operación no permitida',
         'No puede eliminar su propia cuenta mientras tiene la sesión iniciada.'
       );
@@ -496,6 +478,33 @@ export default function Usuarios() {
       return;
     }
 
+    /**
+     * En React Native Web se utiliza
+     * window.confirm().
+     */
+    if (
+      Platform.OS === 'web' &&
+      typeof window !== 'undefined'
+    ) {
+
+      const confirmado =
+        window.confirm(
+          `¿Desea eliminar a ${usuario.nombre}?`
+        );
+
+      if (confirmado) {
+
+        ejecutarEliminacion(
+          idUsuario
+        );
+      }
+
+      return;
+    }
+
+    /**
+     * Confirmación para Android y iOS.
+     */
     Alert.alert(
       'Eliminar usuario',
 
@@ -503,19 +512,13 @@ export default function Usuarios() {
 
       [
         {
-          text:
-            'Cancelar',
-
-          style:
-            'cancel',
+          text: 'Cancelar',
+          style: 'cancel',
         },
 
         {
-          text:
-            'Eliminar',
-
-          style:
-            'destructive',
+          text: 'Eliminar',
+          style: 'destructive',
 
           onPress: () => {
 
@@ -524,7 +527,11 @@ export default function Usuarios() {
             );
           },
         },
-      ]
+      ],
+
+      {
+        cancelable: true,
+      }
     );
   };
 
@@ -563,17 +570,21 @@ export default function Usuarios() {
    * ============================================================
    */
   return (
-    <View style={styles.container}>
-
-      {/* Botón volver */}
+    <View
+      style={
+        styles.container
+      }
+    >
 
       <TouchableOpacity
         style={
           styles.botonVolver
         }
+
         onPress={() =>
           router.back()
         }
+
         activeOpacity={0.8}
       >
         <Text
@@ -584,8 +595,6 @@ export default function Usuarios() {
           ← Volver
         </Text>
       </TouchableOpacity>
-
-      {/* Encabezado */}
 
       <View
         style={
@@ -613,11 +622,9 @@ export default function Usuarios() {
             styles.subtitulo
           }
         >
-          Consulte y administre las cuentas del sistema
+          Consulta y administra las cuentas del sistema.
         </Text>
       </View>
-
-      {/* Resumen */}
 
       <View
         style={
@@ -645,10 +652,10 @@ export default function Usuarios() {
         </Text>
       </View>
 
-      {/* Lista */}
-
       <FlatList
-        data={usuarios}
+        data={
+          usuarios
+        }
 
         keyExtractor={(item) =>
           String(
@@ -671,14 +678,17 @@ export default function Usuarios() {
             refreshing={
               actualizando
             }
+
             onRefresh={() =>
               obtenerUsuarios(
                 true
               )
             }
+
             colors={[
               '#0D6EFD',
             ]}
+
             tintColor="#0D6EFD"
           />
         }
@@ -689,13 +699,17 @@ export default function Usuarios() {
 
           const eliminando =
             idEliminando ===
-            item.id_usuario;
+            Number(
+              item.id_usuario
+            );
 
           const esCuentaActual =
             String(
               item.id_usuario
             ) ===
-            idUsuarioAutenticado;
+            String(
+              idUsuarioAutenticado
+            );
 
           return (
             <View
@@ -703,7 +717,6 @@ export default function Usuarios() {
                 styles.tarjeta
               }
             >
-              {/* Encabezado de la tarjeta */}
 
               <View
                 style={
@@ -773,8 +786,6 @@ export default function Usuarios() {
                 </View>
               </View>
 
-              {/* Correo */}
-
               <View
                 style={
                   styles.filaInformacion
@@ -792,13 +803,12 @@ export default function Usuarios() {
                   style={
                     styles.informacion
                   }
+
                   numberOfLines={2}
                 >
                   {item.correo}
                 </Text>
               </View>
-
-              {/* Botones de administrador */}
 
               {
                 esAdministrador
@@ -812,14 +822,17 @@ export default function Usuarios() {
                         style={
                           styles.botonEditar
                         }
+
                         onPress={() =>
                           editarUsuario(
                             item
                           )
                         }
+
                         disabled={
                           eliminando
                         }
+
                         activeOpacity={0.8}
                       >
                         <Text
@@ -841,15 +854,18 @@ export default function Usuarios() {
                           ) &&
                             styles.botonDeshabilitado,
                         ]}
+
                         onPress={() =>
                           eliminarUsuario(
                             item
                           )
                         }
+
                         disabled={
                           eliminando ||
                           esCuentaActual
                         }
+
                         activeOpacity={0.8}
                       >
                         {
@@ -921,11 +937,13 @@ export default function Usuarios() {
               style={
                 styles.botonActualizar
               }
+
               onPress={() =>
                 obtenerUsuarios(
                   true
                 )
               }
+
               activeOpacity={0.8}
             >
               <Text
